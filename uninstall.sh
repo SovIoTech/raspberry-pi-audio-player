@@ -34,12 +34,14 @@ echo "Removing log rotation..."
 rm -f /etc/logrotate.d/audio-player
 
 # Ask about data removal
-read -p "Remove configuration and data files? (y/n): " -n 1 -r
+read -p "Remove configuration and data files (including secrets)? (y/n): " -n 1 -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "Removing data files..."
     rm -rf /var/lib/audio-player
     rm -rf /var/log/audio-player
+    # Remove secrets if present
+    rm -f /var/lib/audio-player/secret_config.json
 else
     echo "Data files preserved in:"
     echo "  /var/lib/audio-player"
