@@ -2,7 +2,22 @@
 
 A background audio player service for Raspberry Pi that plays music with ads, controlled via WordPress API.
 
-## Quick Install
+## Quick Install (Recommended)
+
+### Method 1: DEB Package (Easiest)
+
+```bash
+# Download the latest release
+wget https://github.com/SovIoTech/raspberry-pi-audio-player/releases/download/v1.0.0/audio-player_1.0.0.deb
+
+# Install
+sudo dpkg -i audio-player_1.0.0.deb
+
+# Fix dependencies if needed
+sudo apt-get install -f
+```
+
+### Method 2: Install Script
 
 ```bash
 git clone https://github.com/SovIoTech/raspberry-pi-audio-player.git
@@ -23,41 +38,34 @@ sudo ./install.sh
 - **Auto-Restart**: Service restarts on failure and boot
 - **Log Management**: Automatic log rotation
 
-## Installation
-
-### Automatic Installation
+## Building DEB Package (For Developers)
 
 ```bash
-git clone https://github.com/yourusername/raspberry-pi-audio-player.git
-cd raspberry-pi-audio-player
-sudo ./install.sh
-```
+# Make the build script executable
+chmod +x build-deb.sh
 
-### Manual Installation
+# Build the package
+./build-deb.sh
 
-```bash
-sudo apt-get update
-sudo apt-get install -y python3 python3-pip vlc libvlc-dev alsa-utils
-pip3 install -r requirements.txt
-sudo mkdir -p /opt/audio-player
-sudo mkdir -p /var/lib/audio-player/audio_cache
-sudo mkdir -p /var/log/audio-player
-sudo cp player.py vlc_player.py api_client.py config_manager.py /opt/audio-player/
-sudo chmod +x /opt/audio-player/player.py
-sudo cp audio-player.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable audio-player.service
-sudo chown -R pi:pi /opt/audio-player /var/lib/audio-player /var/log/audio-player
-sudo systemctl start audio-player.service
+# Package will be created in dist/ directory
 ```
 
 ## Service Management
 
 ```bash
+# Start the service
 sudo systemctl start audio-player
+
+# Stop the service
 sudo systemctl stop audio-player
+
+# Restart the service
 sudo systemctl restart audio-player
+
+# Check status
 sudo systemctl status audio-player
+
+# View logs
 sudo journalctl -u audio-player -f
 ```
 
@@ -67,6 +75,23 @@ sudo journalctl -u audio-player -f
 - **Data**: `/var/lib/audio-player/`
 - **Logs**: `/var/log/audio-player/`
 - **Service**: `/etc/systemd/system/audio-player.service`
+- **Secrets**: `/var/lib/audio-player/secret_config.json`
+
+## Configuration
+
+### API Secrets
+
+The first time you install, you'll be prompted to enter:
+- API base URL (e.g., `https://your-domain.com/wp-json/api/v1`)
+- API authentication token
+
+These are stored securely in `/var/lib/audio-player/secret_config.json` with restricted permissions (600).
+
+To reconfigure after installation:
+```bash
+sudo nano /var/lib/audio-player/secret_config.json
+sudo systemctl restart audio-player
+```
 
 ## Commands Supported
 
@@ -103,7 +128,7 @@ sudo journalctl -u audio-player -f
 
 ```bash
 cd /opt/audio-player
-python3 player.py --test
+sudo python3 player.py --test
 ```
 
 ## Troubleshooting
@@ -111,9 +136,15 @@ python3 player.py --test
 ### Check Logs
 
 ```bash
+# Real-time logs
+sudo journalctl -u audio-player -f
+
+# Last 100 lines
 sudo journalctl -u audio-player -n 100
-tail -f /var/log/audio-player/player.log
-tail -f /var/log/audio-player/player-error.log
+
+# Log files
+sudo tail -f /var/log/audio-player/player.log
+sudo tail -f /var/log/audio-player/player-error.log
 ```
 
 ### Common Issues
@@ -130,8 +161,9 @@ tail -f /var/log/audio-player/player-error.log
    ```
 
 3. **API errors**:
+   Check your secret configuration:
    ```bash
-   curl -I https://joes452.sg-host.com
+   sudo cat /var/lib/audio-player/secret_config.json
    ```
 
 4. **Service not starting**:
@@ -145,24 +177,47 @@ tail -f /var/log/audio-player/player-error.log
 ```bash
 sudo systemctl stop audio-player
 cd /opt/audio-player
-python3 player.py
+sudo python3 player.py
 ```
 
 ## Uninstall
 
+### DEB Package
+```bash
+# Remove package but keep configuration
+sudo apt-get remove audio-player
+
+# Remove package and all configuration/data
+sudo apt-get purge audio-player
+```
+
+### Install Script
 ```bash
 sudo ./uninstall.sh
 ```
 
 ## Configuration Files
 
+- `/var/lib/audio-player/secret_config.json` - API credentials (secure)
 - `/var/lib/audio-player/config.json` - Device configuration
 - `/var/lib/audio-player/state.json` - Playback state
 - `/var/lib/audio-player/mac_address.txt` - Device MAC address
 - `/var/lib/audio-player/audio_cache/` - Downloaded tracks
 
-## Replicate to Multiple Raspberry Pis
+## Deploy to Multiple Raspberry Pis
 
+### Using DEB Package
+```bash
+# Copy the .deb file to each Pi
+scp dist/audio-player_1.0.0.deb pi@raspberry-pi-ip:~
+
+# SSH into each Pi and install
+ssh pi@raspberry-pi-ip
+sudo dpkg -i audio-player_1.0.0.deb
+sudo apt-get install -f
+```
+
+### Using Git
 ```bash
 ssh pi@raspberry-pi-ip
 git clone https://github.com/SovIoTech/raspberry-pi-audio-player.git
@@ -176,19 +231,54 @@ sudo ./install.sh
 raspberry-pi-audio-player/
 +-- README.md
 +-- requirements.txt
-+-- install.sh
-+-- uninstall.sh
-+-- audio-player.service
-+-- player.py
-+-- vlc_player.py
-+-- api_client.py
-+-- config_manager.py
++-- build-deb.sh          # DEB package builder
++-- install.sh            # Install script
++-- uninstall.sh          # Uninstall script
++-- player.py             # Main application
++-- vlc_player.py         # VLC player module
++-- api_client.py         # API communication
++-- config_manager.py     # Configuration management
+```
+
+## Package Management
+
+```bash
+# List package info
+dpkg -l audio-player
+
+# List package files
+dpkg -L audio-player
+
+# Check package status
+dpkg -s audio-player
+
+# Reconfigure package
+sudo dpkg-reconfigure audio-player
 ```
 
 ## Development
 
+### Testing Changes
 ```bash
-python3 player.py
+sudo systemctl stop audio-player
+cd /opt/audio-player
+sudo python3 player.py
+```
+
+### Building New Version
+```bash
+# Update VERSION in build-deb.sh
+nano build-deb.sh
+
+# Build new package
+./build-deb.sh
+
+# Test installation
+sudo dpkg -i dist/audio-player_1.0.1.deb
+```
+
+### Python Syntax Check
+```bash
 python3 -m py_compile *.py
 ```
 
@@ -199,7 +289,40 @@ For issues, check:
 2. Logs: `sudo journalctl -u audio-player -f`
 3. Network: `ping google.com`
 4. Audio: `speaker-test -t sine -f 440`
+5. Secrets: `sudo cat /var/lib/audio-player/secret_config.json`
+
+## Dependencies
+
+- Python 3.7+
+- python3-pip
+- VLC media player
+- libvlc-dev
+- alsa-utils
+- logrotate
+
+Python packages:
+- python-vlc==3.0.21203
+- requests==2.32.3
 
 ## License
 
 MIT License
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Test your changes
+4. Build and test the DEB package
+5. Submit a pull request
+
+## Changelog
+
+### Version 1.0.0 (Initial Release)
+- Sequential playback with ad support
+- Remote control via WordPress API
+- Network resilience
+- Auto-restart capability
+- DEB package installer
+- Heartbeat monitoring
+- Log rotation
