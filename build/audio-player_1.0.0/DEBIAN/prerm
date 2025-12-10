@@ -1,0 +1,8 @@
+#!/bin/bash
+set -e
+
+# Stop and disable service
+systemctl stop audio-player.service || true
+systemctl disable audio-player.service || true
+
+exit 0

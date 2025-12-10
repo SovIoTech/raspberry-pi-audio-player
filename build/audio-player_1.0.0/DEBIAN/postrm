@@ -1,0 +1,14 @@
+#!/bin/bash
+set -e
+
+if [ "$1" = "purge" ]; then
+    # Remove data and logs on purge
+    rm -rf /var/lib/audio-player
+    rm -rf /var/log/audio-player
+    echo "All configuration and data files removed."
+fi
+
+# Reload systemd
+systemctl daemon-reload || true
+
+exit 0

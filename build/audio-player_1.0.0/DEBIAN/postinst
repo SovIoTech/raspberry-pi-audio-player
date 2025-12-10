@@ -1,0 +1,67 @@
+#!/bin/bash
+set -e
+
+echo "Configuring audio-player..."
+
+# Create directories
+mkdir -p /var/lib/audio-player/audio_cache
+mkdir -p /var/log/audio-player
+
+# Set permissions
+chown -R root:root /opt/audio-player
+chown -R root:root /var/lib/audio-player
+chown -R root:root /var/log/audio-player
+chmod 755 /opt/audio-player
+chmod 755 /var/lib/audio-player
+chmod 755 /var/log/audio-player
+
+# Install Python dependencies
+echo "Installing Python dependencies..."
+pip3 install --break-system-packages --ignore-installed --root-user-action=ignore python-vlc==3.0.21203 requests==2.32.3 || true
+
+# Configure API secrets if not exists
+SECRET_FILE="/var/lib/audio-player/secret_config.json"
+if [ ! -f "$SECRET_FILE" ]; then
+    echo ""
+    echo "=============================="
+    echo "Configure API Secret"
+    echo "=============================="
+    
+    read -p "Enter API base URL: " API_BASE_URL
+    read -p "Enter API token: " API_TOKEN
+    
+    cat <<EOFCONF > "$SECRET_FILE"
+{
+    "api_base_url": "$API_BASE_URL",
+    "auth_token": "$API_TOKEN"
+}
+EOFCONF
+    
+    chmod 600 "$SECRET_FILE"
+    echo "API secret saved successfully!"
+fi
+
+# Reload systemd and enable service
+systemctl daemon-reload
+systemctl enable audio-player.service
+
+# Start the service automatically
+echo "Starting audio-player service..."
+systemctl start audio-player.service
+
+echo ""
+echo "========================================="
+echo "Installation completed successfully!"
+echo "========================================="
+echo "Service status:"
+systemctl status audio-player.service --no-pager -l || true
+echo ""
+echo "View live logs with:"
+echo "  sudo journalctl -u audio-player -f"
+echo ""
+echo "Control the service with:"
+echo "  sudo systemctl stop audio-player"
+echo "  sudo systemctl restart audio-player"
+echo "========================================="
+
+exit 0

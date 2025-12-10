@@ -1,0 +1,12 @@
+Package: audio-player
+Version: 1.0.0
+Section: sound
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.7), python3-pip, vlc, libvlc-dev, alsa-utils, logrotate
+Maintainer: Masuod Ghafoor <masuod.ghafoor85@gmail.com>
+Description: Background audio player service for Raspberry Pi
+ A background audio player service for Raspberry Pi that plays music with ads,
+ controlled via WordPress API. Features include sequential playback, ad system,
+ remote control, heartbeat monitoring, and network resilience.
+Homepage: https://github.com/SovIoTech/raspberry-pi-audio-player
