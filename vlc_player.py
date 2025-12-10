@@ -5,6 +5,8 @@ VLC player functionality
 import vlc
 import time
 import logging
+import subprocess
+import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -21,8 +23,71 @@ class VLCPlayer:
         self.pause_position = 0
         self.was_paused = False
     
+    def _detect_audio_device(self):
+        """auto-detect headphone/analog audio device."""
+        try:
+            # Get list of audio devices
+            result = subprocess.run(['aplay', '-l'], capture_output=True, text=True, timeout=5)
+            output = result.stdout
+            
+            # Patterns to identify headphone/analog devices (non-HDMI)
+            headphone_patterns = [
+                (r'card (\d+):.*Headphones', 'headphones'),
+                (r'card (\d+):.*bcm2835', 'bcm2835 analog'),
+                (r'card (\d+):.*Analog', 'analog'),
+                (r'card (\d+):.*PCH', 'pch audio'),
+                (r'card (\d+):.*snd_rpi_\w+', 'raspberry pi sound card'),
+                (r'card (\d+):.*USB Audio', 'usb audio'),
+            ]
+            
+            # Patterns to exclude (HDMI devices)
+            hdmi_patterns = [
+                r'HDMI',
+                r'hdmi',
+                r'vc4hdmi',
+                r'vc4-hdmi',
+            ]
+            
+            # First, try to find headphone/analog devices
+            for pattern, description in headphone_patterns:
+                match = re.search(pattern, output, re.IGNORECASE)
+                if match:
+                    card_num = match.group(1)
+                    # Check if it's not an HDMI device
+                    line = match.group(0)
+                    if not any(hdmi in line for hdmi in hdmi_patterns):
+                        device = f'hw:{card_num},0'
+                        logger.info(f"auto-detected {description} at card {card_num}")
+                        return device
+            
+            # If no headphone device found, find first non-HDMI device
+            lines = output.strip().split('\n')
+            for line in lines:
+                if 'card' in line and 'device' in line:
+                    # Skip HDMI devices
+                    if any(hdmi in line for hdmi in hdmi_patterns):
+                        continue
+                    
+                    match = re.search(r'card (\d+):', line)
+                    if match:
+                        card_num = match.group(1)
+                        device = f'hw:{card_num},0'
+                        logger.info(f"using non-hdmi device at card {card_num}")
+                        return device
+            
+            # Default to card 0 if nothing else found
+            logger.info("no specific audio device detected, using default card 0")
+            return 'hw:0,0'
+            
+        except Exception as e:
+            logger.warning(f"audio device detection failed: {e}, using default")
+            return 'hw:0,0'
+    
     def init_vlc(self):
-        """initialize vlc instance and player."""
+        """initialize vlc instance and player with auto-detection."""
+        # Auto-detect audio device
+        alsa_device = self._detect_audio_device()
+        
         vlc_args = [
             '--no-video',
             '--quiet',
@@ -30,28 +95,50 @@ class VLCPlayer:
             '--file-caching=3000',
             '--gain=1.0',
             '--aout=alsa',
-            '--alsa-audio-device=hw:0,0',
+            f'--alsa-audio-device={alsa_device}',
         ]
         
         try:
             self.instance = vlc.Instance(*vlc_args)
-            logger.info("vlc instance created successfully")
+            logger.info(f"vlc instance created with device: {alsa_device}")
             
             self.player = self.instance.media_player_new()
             if self.player:
                 logger.info("vlc player created successfully")
                 self.set_volume_smooth(self.config.volume)
+                
+                # Test if audio is working with a quick silent test
+                try:
+                    test_file = "/usr/share/sounds/alsa/Front_Center.wav"
+                    if Path(test_file).exists():
+                        media = self.instance.media_new(test_file)
+                        self.player.set_media(media)
+                        self.player.play()
+                        time.sleep(0.05)
+                        if self.player.is_playing():
+                            self.player.stop()
+                            logger.info("audio test successful")
+                except:
+                    logger.debug("audio test skipped or failed")
+                
                 return True
             else:
                 logger.error("failed to create vlc player")
                 return False
                 
         except Exception as e:
-            logger.error(f"failed to initialize vlc: {e}")
+            logger.error(f"failed to initialize vlc with {alsa_device}: {e}")
+            # Fallback without specific device
             try:
-                self.instance = vlc.Instance('--no-video', '--quiet', '--aout=alsa')
+                fallback_args = [
+                    '--no-video',
+                    '--quiet',
+                    '--aout=alsa',
+                    '--alsa-audio-device=default'
+                ]
+                self.instance = vlc.Instance(*fallback_args)
                 self.player = self.instance.media_player_new()
-                logger.info("using fallback vlc configuration")
+                logger.info("using fallback vlc configuration with 'default' device")
                 self.set_volume_smooth(self.config.volume)
                 return True
             except Exception as e2:
