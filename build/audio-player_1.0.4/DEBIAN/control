@@ -1,0 +1,20 @@
+Package: audio-player
+Version: 1.0.4
+Section: sound
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.7), python3-pip, vlc, libvlc-dev, alsa-utils, logrotate, python3-pil, fbset
+Recommends: python3-pil
+Maintainer: Masuod Ghafoor <masuod.ghafoor85@gmail.com>
+Description: Background audio player service for Raspberry Pi with LCD Display
+ A background audio player service for Raspberry Pi that plays music with ads,
+ controlled via WordPress API. Features include:
+  * Sequential playback with ad system
+  * 3.5" LCD display support (320x480) with auto-configuration
+  * Supports multiple LCD types: tft35a, Waveshare, MHS-35 (mhs35-show)
+  * Remote control via API commands
+  * Heartbeat monitoring and status reporting
+  * Network resilience with offline cache
+  * Display shows song name, progress, and ad countdown
+  * Volume control and playback state management
+Homepage: https://github.com/SovIoTech/raspberry-pi-audio-player

@@ -1,0 +1,282 @@
+2025-12-16 16:17:54,949 - INFO - running in local mode
+2025-12-16 16:17:54,959 - INFO - base dir: /home/big/audio-player-test/raspberry-pi-audio-player
+2025-12-16 16:17:54,971 - INFO - persistent dir: /home/big/audio-player-test/raspberry-pi-audio-player/data
+2025-12-16 16:17:54,984 - INFO - log dir: /home/big/audio-player-test/raspberry-pi-audio-player
+2025-12-16 16:17:55,009 - WARNING - secret config file not found: /home/big/audio-player-test/raspberry-pi-audio-player/data/secret_config.json
+2025-12-16 16:17:55,030 - INFO - audio player initialized
+2025-12-16 16:17:55,041 - INFO - getting mac address from eth0...
+2025-12-16 16:17:55,054 - INFO - found mac address on eth0: b8:27:eb:c6:11:ce
+2025-12-16 16:17:55,147 - INFO - auto-detected headphones at card 0
+2025-12-16 16:17:55,638 - INFO - vlc instance created with device: hw:0,0
+2025-12-16 16:17:55,944 - INFO - vlc player created successfully
+2025-12-16 16:17:55,956 - INFO - volume set to 7/10 (70%)
+2025-12-16 16:17:56,031 - INFO - setting up device...
+2025-12-16 16:17:56,173 - WARNING - api registration failed, trying cached config...
+2025-12-16 16:17:56,198 - ERROR - no configuration available
+2025-12-16 16:17:56,214 - WARNING - device setup failed, continuing with limited functionality
+2025-12-16 16:17:56,240 - INFO - command poller started
+2025-12-16 16:17:56,306 - INFO - heartbeat sender started
+2025-12-16 16:17:56,323 - INFO - display manager started
+2025-12-16 16:17:56,405 - INFO - starting main audio playback loop...
+2025-12-16 16:17:56,449 - INFO - starting audio playback loop
+2025-12-16 16:17:57,491 - INFO - playback timer reset
+2025-12-16 16:17:58,305 - WARNING - no cached tracks available
+2025-12-16 16:17:58,323 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:01,520 - WARNING - no cached tracks available
+2025-12-16 16:18:01,528 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:04,644 - WARNING - no cached tracks available
+2025-12-16 16:18:04,651 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:07,766 - WARNING - no cached tracks available
+2025-12-16 16:18:07,776 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:10,884 - WARNING - no cached tracks available
+2025-12-16 16:18:10,889 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:13,998 - WARNING - no cached tracks available
+2025-12-16 16:18:14,007 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:17,119 - WARNING - no cached tracks available
+2025-12-16 16:18:17,124 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:20,230 - WARNING - no cached tracks available
+2025-12-16 16:18:20,236 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:23,347 - WARNING - no cached tracks available
+2025-12-16 16:18:23,357 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:26,477 - WARNING - no cached tracks available
+2025-12-16 16:18:26,502 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:29,616 - WARNING - no cached tracks available
+2025-12-16 16:18:29,622 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:32,736 - WARNING - no cached tracks available
+2025-12-16 16:18:32,742 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:35,855 - WARNING - no cached tracks available
+2025-12-16 16:18:35,862 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:38,973 - WARNING - no cached tracks available
+2025-12-16 16:18:38,978 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:42,085 - WARNING - no cached tracks available
+2025-12-16 16:18:42,090 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:45,204 - WARNING - no cached tracks available
+2025-12-16 16:18:45,212 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:48,326 - WARNING - no cached tracks available
+2025-12-16 16:18:48,334 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:51,448 - WARNING - no cached tracks available
+2025-12-16 16:18:51,456 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:54,563 - WARNING - no cached tracks available
+2025-12-16 16:18:54,570 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:18:57,683 - WARNING - no cached tracks available
+2025-12-16 16:18:57,694 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:00,809 - WARNING - no cached tracks available
+2025-12-16 16:19:00,817 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:03,929 - WARNING - no cached tracks available
+2025-12-16 16:19:03,939 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:07,054 - WARNING - no cached tracks available
+2025-12-16 16:19:07,064 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:10,171 - WARNING - no cached tracks available
+2025-12-16 16:19:10,177 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:13,289 - WARNING - no cached tracks available
+2025-12-16 16:19:13,294 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:16,406 - WARNING - no cached tracks available
+2025-12-16 16:19:16,414 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:19,524 - WARNING - no cached tracks available
+2025-12-16 16:19:19,529 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:22,640 - WARNING - no cached tracks available
+2025-12-16 16:19:22,656 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:25,765 - WARNING - no cached tracks available
+2025-12-16 16:19:25,770 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:28,885 - WARNING - no cached tracks available
+2025-12-16 16:19:28,894 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:32,008 - WARNING - no cached tracks available
+2025-12-16 16:19:32,015 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:35,122 - WARNING - no cached tracks available
+2025-12-16 16:19:35,130 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:38,242 - WARNING - no cached tracks available
+2025-12-16 16:19:38,247 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:41,354 - WARNING - no cached tracks available
+2025-12-16 16:19:41,361 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:44,477 - WARNING - no cached tracks available
+2025-12-16 16:19:44,483 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:47,594 - WARNING - no cached tracks available
+2025-12-16 16:19:47,602 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:50,716 - WARNING - no cached tracks available
+2025-12-16 16:19:50,723 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:53,834 - WARNING - no cached tracks available
+2025-12-16 16:19:53,843 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:19:56,953 - WARNING - no cached tracks available
+2025-12-16 16:19:56,958 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:00,067 - WARNING - no cached tracks available
+2025-12-16 16:20:00,074 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:03,186 - WARNING - no cached tracks available
+2025-12-16 16:20:03,195 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:06,307 - WARNING - no cached tracks available
+2025-12-16 16:20:06,315 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:09,427 - WARNING - no cached tracks available
+2025-12-16 16:20:09,438 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:12,548 - WARNING - no cached tracks available
+2025-12-16 16:20:12,553 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:15,660 - WARNING - no cached tracks available
+2025-12-16 16:20:15,665 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:18,780 - WARNING - no cached tracks available
+2025-12-16 16:20:18,787 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:21,894 - WARNING - no cached tracks available
+2025-12-16 16:20:21,902 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:25,014 - WARNING - no cached tracks available
+2025-12-16 16:20:25,030 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:28,145 - WARNING - no cached tracks available
+2025-12-16 16:20:28,153 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:31,264 - WARNING - no cached tracks available
+2025-12-16 16:20:31,274 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:34,384 - WARNING - no cached tracks available
+2025-12-16 16:20:34,389 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:37,503 - WARNING - no cached tracks available
+2025-12-16 16:20:37,514 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:40,626 - WARNING - no cached tracks available
+2025-12-16 16:20:40,635 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:43,748 - WARNING - no cached tracks available
+2025-12-16 16:20:43,756 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:46,871 - WARNING - no cached tracks available
+2025-12-16 16:20:46,876 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:49,983 - WARNING - no cached tracks available
+2025-12-16 16:20:49,989 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:53,102 - WARNING - no cached tracks available
+2025-12-16 16:20:53,110 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:56,224 - WARNING - no cached tracks available
+2025-12-16 16:20:56,235 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:20:59,346 - WARNING - no cached tracks available
+2025-12-16 16:20:59,351 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:02,466 - WARNING - no cached tracks available
+2025-12-16 16:21:02,473 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:05,587 - WARNING - no cached tracks available
+2025-12-16 16:21:05,595 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:08,707 - WARNING - no cached tracks available
+2025-12-16 16:21:08,717 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:11,827 - WARNING - no cached tracks available
+2025-12-16 16:21:11,836 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:14,947 - WARNING - no cached tracks available
+2025-12-16 16:21:14,965 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:18,076 - WARNING - no cached tracks available
+2025-12-16 16:21:18,084 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:21,196 - WARNING - no cached tracks available
+2025-12-16 16:21:21,204 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:24,310 - WARNING - no cached tracks available
+2025-12-16 16:21:24,318 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:27,430 - WARNING - no cached tracks available
+2025-12-16 16:21:27,440 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:30,548 - WARNING - no cached tracks available
+2025-12-16 16:21:30,555 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:33,668 - WARNING - no cached tracks available
+2025-12-16 16:21:33,674 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:36,786 - WARNING - no cached tracks available
+2025-12-16 16:21:36,802 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:39,922 - WARNING - no cached tracks available
+2025-12-16 16:21:39,932 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:43,045 - WARNING - no cached tracks available
+2025-12-16 16:21:43,056 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:46,169 - WARNING - no cached tracks available
+2025-12-16 16:21:46,179 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:49,291 - WARNING - no cached tracks available
+2025-12-16 16:21:49,297 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:52,409 - WARNING - no cached tracks available
+2025-12-16 16:21:52,416 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:55,531 - WARNING - no cached tracks available
+2025-12-16 16:21:55,537 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:21:58,648 - WARNING - no cached tracks available
+2025-12-16 16:21:58,654 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:01,769 - WARNING - no cached tracks available
+2025-12-16 16:22:01,777 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:04,885 - WARNING - no cached tracks available
+2025-12-16 16:22:04,894 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:08,006 - WARNING - no cached tracks available
+2025-12-16 16:22:08,015 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:11,125 - WARNING - no cached tracks available
+2025-12-16 16:22:11,132 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:14,244 - WARNING - no cached tracks available
+2025-12-16 16:22:14,253 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:17,365 - WARNING - no cached tracks available
+2025-12-16 16:22:17,375 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:20,487 - WARNING - no cached tracks available
+2025-12-16 16:22:20,497 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:23,608 - WARNING - no cached tracks available
+2025-12-16 16:22:23,614 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:26,725 - WARNING - no cached tracks available
+2025-12-16 16:22:26,733 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:29,847 - WARNING - no cached tracks available
+2025-12-16 16:22:29,857 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:32,969 - WARNING - no cached tracks available
+2025-12-16 16:22:32,977 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:36,088 - WARNING - no cached tracks available
+2025-12-16 16:22:36,098 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:39,209 - WARNING - no cached tracks available
+2025-12-16 16:22:39,216 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:42,326 - WARNING - no cached tracks available
+2025-12-16 16:22:42,334 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:45,451 - WARNING - no cached tracks available
+2025-12-16 16:22:45,456 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:48,563 - WARNING - no cached tracks available
+2025-12-16 16:22:48,568 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:51,681 - WARNING - no cached tracks available
+2025-12-16 16:22:51,691 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:54,800 - WARNING - no cached tracks available
+2025-12-16 16:22:54,809 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:22:57,935 - WARNING - no cached tracks available
+2025-12-16 16:22:57,941 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:01,057 - WARNING - no cached tracks available
+2025-12-16 16:23:01,065 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:04,175 - WARNING - no cached tracks available
+2025-12-16 16:23:04,185 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:07,296 - WARNING - no cached tracks available
+2025-12-16 16:23:07,304 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:10,411 - WARNING - no cached tracks available
+2025-12-16 16:23:10,417 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:13,523 - WARNING - no cached tracks available
+2025-12-16 16:23:13,529 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:16,644 - WARNING - no cached tracks available
+2025-12-16 16:23:16,653 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:19,766 - WARNING - no cached tracks available
+2025-12-16 16:23:19,777 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:22,887 - WARNING - no cached tracks available
+2025-12-16 16:23:22,894 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:26,005 - WARNING - no cached tracks available
+2025-12-16 16:23:26,012 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:29,126 - WARNING - no cached tracks available
+2025-12-16 16:23:29,135 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:32,246 - WARNING - no cached tracks available
+2025-12-16 16:23:32,252 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:35,363 - WARNING - no cached tracks available
+2025-12-16 16:23:35,369 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:38,483 - WARNING - no cached tracks available
+2025-12-16 16:23:38,491 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:41,608 - WARNING - no cached tracks available
+2025-12-16 16:23:41,615 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:44,727 - WARNING - no cached tracks available
+2025-12-16 16:23:44,737 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:47,847 - WARNING - no cached tracks available
+2025-12-16 16:23:47,856 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:50,967 - WARNING - no cached tracks available
+2025-12-16 16:23:50,972 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:54,087 - WARNING - no cached tracks available
+2025-12-16 16:23:54,096 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:23:57,206 - WARNING - no cached tracks available
+2025-12-16 16:23:57,214 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:00,328 - WARNING - no cached tracks available
+2025-12-16 16:24:00,338 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:03,454 - WARNING - no cached tracks available
+2025-12-16 16:24:03,459 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:06,571 - WARNING - no cached tracks available
+2025-12-16 16:24:06,577 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:09,689 - WARNING - no cached tracks available
+2025-12-16 16:24:09,699 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:12,808 - WARNING - no cached tracks available
+2025-12-16 16:24:12,813 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:15,920 - WARNING - no cached tracks available
+2025-12-16 16:24:15,929 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:19,042 - WARNING - no cached tracks available
+2025-12-16 16:24:19,050 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:22,160 - WARNING - no cached tracks available
+2025-12-16 16:24:22,168 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:25,279 - WARNING - no cached tracks available
+2025-12-16 16:24:25,289 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:28,400 - WARNING - no cached tracks available
+2025-12-16 16:24:28,406 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:31,517 - WARNING - no cached tracks available
+2025-12-16 16:24:31,529 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:34,643 - WARNING - no cached tracks available
+2025-12-16 16:24:34,654 - WARNING - failed to play track, retrying in 3s
+2025-12-16 16:24:35,416 - INFO - shutdown requested by user
+2025-12-16 16:24:35,427 - INFO - cleaning up...
+2025-12-16 16:24:36,075 - INFO - cleanup completed
+2025-12-16 16:24:36,086 - INFO - player shutdown complete

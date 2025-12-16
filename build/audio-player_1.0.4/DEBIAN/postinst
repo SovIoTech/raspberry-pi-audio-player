@@ -1,0 +1,299 @@
+#!/bin/bash
+set -e
+
+echo "========================================="
+echo "Configuring audio-player v${VERSION}"
+echo "========================================="
+
+# --- 1. Ensure directories exist ---
+mkdir -p /var/lib/audio-player/audio_cache
+mkdir -p /var/log/audio-player
+
+# --- 2. Set permissions ---
+chown -R root:root /opt/audio-player
+chown -R root:root /var/lib/audio-player
+chown -R root:root /var/log/audio-player
+chmod 755 /opt/audio-player
+chmod 755 /var/lib/audio-player
+chmod 755 /var/log/audio-player
+chmod 755 /opt/audio-player/*.sh
+chmod 600 /var/lib/audio-player/secret_config.json || true
+
+# --- 3. Install Python dependencies ---
+echo "Installing Python dependencies..."
+pip3 install --break-system-packages --ignore-installed --root-user-action=ignore \
+    python-vlc==3.0.21203 \
+    requests==2.32.3 \
+    Pillow || true
+
+# --- 4. Configure API secrets ---
+echo ""
+echo "=============================="
+echo "API Configuration"
+echo "=============================="
+SECRET_FILE="/var/lib/audio-player/secret_config.json"
+if [ -f "$SECRET_FILE" ]; then
+    current_config=$(cat "$SECRET_FILE" | tr -d ' \n\r')
+    if [ "$current_config" = '{"api_base_url":"","auth_token":""}' ] || [ "$current_config" = '{}' ]; then
+        echo "API credentials not configured."
+        echo "You can configure them later by editing:"
+        echo "  sudo nano $SECRET_FILE"
+        echo ""
+    else
+        echo "? API credentials already configured"
+    fi
+fi
+
+# --- 5. INTEGRATED LCD SETUP with MHS-35 support ---
+echo ""
+echo "=============================="
+echo "LCD Display Setup"
+echo "=============================="
+
+LCD_CONFIGURED=false
+NEEDS_REBOOT=false
+INSTALLED_MHS35=false
+
+# Determine config file location
+if [ -f /boot/firmware/config.txt ]; then
+    CONFIG_FILE="/boot/firmware/config.txt"
+elif [ -f /boot/config.txt ]; then
+    CONFIG_FILE="/boot/config.txt"
+else
+    CONFIG_FILE=""
+    echo "Warning: Cannot find config.txt, LCD may not work"
+fi
+
+# Check if LCD is already configured
+if [ -e /dev/fb1 ]; then
+    echo "? LCD detected at /dev/fb1"
+    LCD_CONFIGURED=true
+    
+    if command -v fbset &> /dev/null; then
+        if fbset -i -fb /dev/fb1 2>/dev/null | grep -q "480x320"; then
+            echo "? LCD resolution confirmed: 480x320"
+        fi
+    fi
+fi
+
+# Check for existing MHS-35 installation
+if [ -f "/usr/local/bin/mhs35-show" ] || [ -d "/home/pi/lcd_show" ]; then
+    echo "? MHS-35 LCD driver already installed"
+    LCD_CONFIGURED=true
+    INSTALLED_MHS35=true
+fi
+
+# Interactive LCD setup if not configured
+if [ "$LCD_CONFIGURED" = false ] && [ -n "$CONFIG_FILE" ]; then
+    echo ""
+    echo "Would you like to configure a 3.5\" LCD display for the audio player?"
+    echo "If you don't have an LCD, you can skip this."
+    echo ""
+    read -p "Configure LCD now? (y/N): " SETUP_LCD
+    
+    if [ "$SETUP_LCD" = "y" ] || [ "$SETUP_LCD" = "Y" ]; then
+        echo ""
+        echo "Select your LCD type:"
+        echo "1) Auto (recommended) - tft35a, 90° rotation, 48MHz"
+        echo "2) Waveshare 3.5\" LCD"
+        echo "3) MHS-35 LCD (uses mhs35-show driver)"
+        echo "4) Skip LCD setup"
+        echo ""
+        read -p "Choice [1-4]: " LCD_CHOICE
+        
+        case $LCD_CHOICE in
+            1|"")
+                echo "Configuring LCD with tft35a driver..."
+                
+                # Backup config
+                if [ ! -f "${CONFIG_FILE}.backup-audio-player" ]; then
+                    cp "$CONFIG_FILE" "${CONFIG_FILE}.backup-audio-player"
+                    echo "Backup created: ${CONFIG_FILE}.backup-audio-player"
+                fi
+                
+                # Remove old LCD configs
+                sed -i '/dtoverlay=tft35a/d' "$CONFIG_FILE"
+                sed -i '/dtoverlay=waveshare35/d' "$CONFIG_FILE"
+                
+                # Enable SPI
+                if ! grep -q "^dtparam=spi=on" "$CONFIG_FILE"; then
+                    echo "dtparam=spi=on" >> "$CONFIG_FILE"
+                fi
+                
+                # Add LCD config
+                echo "" >> "$CONFIG_FILE"
+                echo "# 3.5\" LCD Configuration (auto-configured by audio-player)" >> "$CONFIG_FILE"
+                echo "dtoverlay=tft35a:rotate=90,speed=48000000,fps=30" >> "$CONFIG_FILE"
+                
+                echo "? LCD configuration added to $CONFIG_FILE"
+                NEEDS_REBOOT=true
+                LCD_CONFIGURED=true
+                ;;
+                
+            2)
+                echo "Configuring Waveshare LCD..."
+                
+                if [ ! -f "${CONFIG_FILE}.backup-audio-player" ]; then
+                    cp "$CONFIG_FILE" "${CONFIG_FILE}.backup-audio-player"
+                fi
+                
+                sed -i '/dtoverlay=tft35a/d' "$CONFIG_FILE"
+                sed -i '/dtoverlay=waveshare35/d' "$CONFIG_FILE"
+                
+                if ! grep -q "^dtparam=spi=on" "$CONFIG_FILE"; then
+                    echo "dtparam=spi=on" >> "$CONFIG_FILE"
+                fi
+                
+                echo "" >> "$CONFIG_FILE"
+                echo "# Waveshare 3.5\" LCD" >> "$CONFIG_FILE"
+                echo "dtoverlay=waveshare35a:rotate=90" >> "$CONFIG_FILE"
+                
+                echo "? Waveshare LCD configuration added"
+                NEEDS_REBOOT=true
+                LCD_CONFIGURED=true
+                ;;
+                
+            3)
+                echo "Configuring MHS-35 LCD..."
+                echo "This will install the mhs35-show driver from GitHub."
+                echo ""
+                read -p "Continue with MHS-35 installation? (y/N): " CONFIRM_MHS
+                
+                if [ "$CONFIRM_MHS" = "y" ] || [ "$CONFIRM_MHS" = "Y" ]; then
+                    # Install MHS-35 driver
+                    echo "Installing MHS-35 LCD driver..."
+                    
+                    # Clone or download mhs35-show
+                    if [ ! -d "/home/pi/lcd_show" ]; then
+                        echo "Cloning mhs35-show repository..."
+                        cd /home/pi
+                        git clone https://github.com/kanosakilcdshow/lcd_show.git 2>/dev/null || \
+                        git clone https://github.com/waveshare/LCD-show.git lcd_show 2>/dev/null || \
+                        echo "Could not clone repository, manual installation may be needed"
+                    fi
+                    
+                    if [ -d "/home/pi/lcd_show" ]; then
+                        echo "Setting up MHS-35 driver..."
+                        cd /home/pi/lcd_show
+                        
+                        # Make scripts executable
+                        chmod -R 755 .
+                        
+                        # Run MHS-35 setup
+                        if [ -f "MHS35-show" ]; then
+                            ./MHS35-show
+                            INSTALLED_MHS35=true
+                            LCD_CONFIGURED=true
+                            NEEDS_REBOOT=true
+                            echo "? MHS-35 driver installed and configured"
+                        elif [ -f "mhs35-show" ]; then
+                            ./mhs35-show
+                            INSTALLED_MHS35=true
+                            LCD_CONFIGURED=true
+                            NEEDS_REBOOT=true
+                            echo "? MHS-35 driver installed and configured"
+                        else
+                            echo "? MHS-35 script not found in lcd_show directory"
+                            echo "You may need to manually install the driver"
+                        fi
+                    else
+                        echo "? Could not find or create lcd_show directory"
+                        echo "Manual driver installation required:"
+                        echo "  cd /home/pi"
+                        echo "  git clone https://github.com/kanosakilcdshow/lcd_show.git"
+                        echo "  cd lcd_show"
+                        echo "  chmod -R 755 ."
+                        echo "  ./MHS35-show  # or ./mhs35-show"
+                    fi
+                else
+                    echo "MHS-35 installation cancelled."
+                fi
+                ;;
+                
+            4|*)
+                echo "Skipping LCD setup."
+                ;;
+        esac
+    fi
+fi
+
+# --- 6. System update and package installation ---
+echo ""
+echo "Updating package lists and installing system dependencies..."
+apt-get update || true
+apt-get install -y --no-install-recommends \
+    python3-pil \
+    fbset \
+    git \
+    wiringpi || true
+
+# --- 7. Systemd setup ---
+echo "Setting up systemd service..."
+systemctl daemon-reload
+systemctl enable audio-player.service
+
+# --- 8. Final instructions ---
+echo ""
+echo "========================================="
+echo "Installation completed!"
+echo "========================================="
+
+if [ "$NEEDS_REBOOT" = true ]; then
+    echo ""
+    echo "IMPORTANT: REBOOT REQUIRED for LCD changes"
+    echo "The LCD configuration has been added to your system."
+    echo "You must reboot for the LCD to work properly."
+    echo ""
+    read -p "Reboot now? (y/N): " DO_REBOOT
+    
+    if [ "$DO_REBOOT" = "y" ] || [ "$DO_REBOOT" = "Y" ]; then
+        echo "Rebooting in 5 seconds..."
+        sleep 5
+        reboot
+    else
+        echo ""
+        echo "Please reboot manually when ready:"
+        echo "  sudo reboot"
+        echo "After reboot, the service will start automatically."
+    fi
+else
+    echo "Starting audio player service..."
+    systemctl restart audio-player.service
+    
+    echo ""
+    echo "Service status:"
+    systemctl status audio-player.service --no-pager -l || true
+    
+    if [ "$LCD_CONFIGURED" = true ]; then
+        echo "? LCD is configured and ready"
+        if [ "$INSTALLED_MHS35" = true ]; then
+            echo "? MHS-35 driver installed at /home/pi/lcd_show"
+        fi
+    fi
+fi
+
+echo ""
+echo "Useful commands:"
+echo "  sudo systemctl start audio-player"
+echo "  sudo systemctl stop audio-player"
+echo "  sudo systemctl restart audio-player"
+echo "  sudo systemctl status audio-player"
+echo "  sudo journalctl -u audio-player -f"
+echo ""
+if [ "$INSTALLED_MHS35" = true ]; then
+    echo "MHS-35 LCD commands:"
+    echo "  cd /home/pi/lcd_show"
+    echo "  ./MHS35-show    # Reconfigure MHS-35"
+    echo "  ./LCD-show      # Switch to other LCD"
+    echo "  ./LCD-hdmi      # Switch back to HDMI"
+    echo ""
+fi
+echo "To configure API credentials:"
+echo "  sudo nano /var/lib/audio-player/secret_config.json"
+echo ""
+echo "To uninstall:"
+echo "  sudo apt-get remove audio-player"
+echo "  sudo apt-get purge audio-player  # Remove config files too"
+echo "========================================="
+
+exit 0

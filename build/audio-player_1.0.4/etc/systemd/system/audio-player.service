@@ -1,0 +1,21 @@
+[Unit]
+Description=Raspberry Pi Audio Player with LCD Display
+After=network.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/audio-player
+Environment="PYTHONUNBUFFERED=1"
+Environment="SDL_FBDEV=/dev/fb1"
+ExecStart=/usr/bin/python3 /opt/audio-player/player.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=audio-player
+
+[Install]
+WantedBy=multi-user.target
