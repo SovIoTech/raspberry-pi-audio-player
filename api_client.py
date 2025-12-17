@@ -34,9 +34,11 @@ class APIClient:
     def send_heartbeat(self, status_info):
         """send heartbeat with status to server."""
         if not self.config.mac_address:
+            logger.debug("No MAC address for heartbeat")
             return False
         
         if not self.check_network():
+            logger.debug("No network for heartbeat")
             return False
         
         url = f"{self.api_base_url}/heartbeat"
@@ -51,12 +53,24 @@ class APIClient:
         }
         
         try:
+            logger.debug(f"Sending heartbeat to {url} with status: {status_info}")
             response = requests.post(url, headers=headers, json=payload, timeout=2)
+            
             if response.status_code == 200:
+                logger.debug(f"Heartbeat successful: {status_info}")
                 return True
             else:
+                logger.warning(f"Heartbeat failed with status {response.status_code}: {response.text}")
                 return False
-        except:
+                
+        except requests.exceptions.Timeout:
+            logger.warning("Heartbeat timed out")
+            return False
+        except requests.exceptions.ConnectionError:
+            logger.warning("Heartbeat connection error")
+            return False
+        except Exception as e:
+            logger.warning(f"Heartbeat error: {e}")
             return False
     
     def check_network(self, force_check=False):
@@ -70,17 +84,21 @@ class APIClient:
         try:
             socket.gethostbyname('google.com')
             self.network_available = True
+            logger.debug("Network check: OK")
             return True
         except:
             self.network_available = False
+            logger.debug("Network check: FAILED")
             return False
     
     def make_api_request_safe(self, endpoint, method='POST', params=None, cache_bust=False):
         """make api request without crashing playback."""
         if not self.config.mac_address:
+            logger.debug(f"No MAC address for API request to {endpoint}")
             return None
         
         if not self.check_network():
+            logger.debug(f"No network for API request to {endpoint}")
             return None
         
         base_url = f"{self.api_base_url}/{endpoint}?mac={quote(self.config.mac_address)}"
@@ -101,6 +119,8 @@ class APIClient:
         try:
             timeout = 10
             
+            logger.debug(f"Making API {method} request to {url}")
+            
             if method.upper() == 'POST':
                 response = requests.post(url, headers=headers, json=params or {}, timeout=timeout)
             else:
@@ -110,13 +130,27 @@ class APIClient:
             data = response.json()
             
             if data.get('error'):
-                logger.error(f"api error: {data.get('msg')}")
+                logger.error(f"API error from {endpoint}: {data.get('msg')}")
                 return None
             
             self.api_available = True
+            logger.debug(f"API request to {endpoint} successful")
             return data
             
+        except requests.exceptions.Timeout:
+            logger.error(f"API request to {endpoint} timed out")
+            self.api_available = False
+            return None
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"API connection error to {endpoint}: {e}")
+            self.api_available = False
+            return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"API request to {endpoint} failed: {e}")
+            self.api_available = False
+            return None
         except Exception as e:
+            logger.error(f"Unexpected error in API request to {endpoint}: {e}")
             self.api_available = False
             return None
     
@@ -139,8 +173,10 @@ class APIClient:
             
             try:
                 self.config.playback_interval = int(data.get('playback_interval', 5))
+                logger.info(f"Playback interval set to {self.config.playback_interval} minutes")
             except (ValueError, TypeError):
                 self.config.playback_interval = 5
+                logger.warning(f"Could not parse playback interval, using default: {self.config.playback_interval} minutes")
             
             self.config.main_playlist = data.get('play_lists', [])
             self.config.ads_playlist = data.get('ads_play_lists', [])
@@ -192,6 +228,7 @@ class APIClient:
             self.config.ads_enabled = register_data.get('ads', self.config.ads_enabled)
             try:
                 self.config.playback_interval = int(register_data.get('playback_interval', self.config.playback_interval))
+                logger.info(f"Updated playback interval: {self.config.playback_interval} minutes")
             except:
                 pass
         
@@ -224,7 +261,7 @@ class APIClient:
                 filename = url.split('/')[-1]
                 if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
                     filename += '.mp3'
-                filename = re.sub(r'[^\w\-_.]', '_', filename)
+                filename = re.sub(r[^\w\-_.], '_', filename)
                 old_filenames.add(prefix + filename)
         
         new_filenames = set()
@@ -233,7 +270,7 @@ class APIClient:
                 filename = url.split('/')[-1]
                 if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
                     filename += '.mp3'
-                filename = re.sub(r'[^\w\-_.]', '_', filename)
+                filename = re.sub(r[^\w\-_.], '_', filename)
                 new_filenames.add(prefix + filename)
         
         removed = old_filenames - new_filenames
@@ -271,7 +308,7 @@ class APIClient:
         if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
             filename += '.mp3'
         
-        filename = re.sub(r'[^\w\-_.]', '_', filename)
+        filename = re.sub(r[^\w\-_.], '_', filename)
         prefix = 'main_' if track_type == 'main' else 'ad_'
         filename = prefix + filename
         filepath = self.config.cache_dir / filename
