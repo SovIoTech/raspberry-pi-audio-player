@@ -280,6 +280,10 @@ class DisplayManager:
         interval = self.config.playback_interval * 60
         remaining = max(0, interval - elapsed)
         
+        # ADDED: Debug logging for ad countdown
+        logger.debug(f"Ad countdown: elapsed={elapsed:.1f}s, interval={interval}s, remaining={remaining:.1f}s, "
+                    f"interval_minutes={self.config.playback_interval}")
+        
         # format countdown
         countdown_mins = int(remaining // 60)
         countdown_secs = int(remaining % 60)
