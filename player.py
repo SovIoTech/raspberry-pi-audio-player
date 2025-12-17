@@ -282,19 +282,40 @@ class AudioPlayer:
                 time.sleep(1)
     
     def heartbeat_sender(self):
+        """Send heartbeat with better error handling and retry logic"""
         logger.info("heartbeat sender started")
+        consecutive_failures = 0
+        max_failures = 3
         
         while not self.stop_event.is_set():
             try:
                 status = self.get_current_status()
                 result = self.api.send_heartbeat(status)
+                
                 if result:
-                    logger.info(f"heartbeat sent: {status}")
+                    logger.info(f"heartbeat sent successfully: {status}")
+                    consecutive_failures = 0
                 else:
-                    logger.debug(f"heartbeat failed: {status}")
+                    consecutive_failures += 1
+                    logger.warning(f"heartbeat failed: {status} (failures: {consecutive_failures})")
+                    
+                    if consecutive_failures >= max_failures:
+                        logger.error(f"Heartbeat failed {consecutive_failures} times consecutively")
+                        # Try to force network check and reconnect
+                        if self.api.check_network(force_check=True):
+                            logger.info("Network is up, trying to reconnect API...")
+                            # Reset API state
+                            self.api.api_available = False
+                            # Try setup device again
+                            if self.api.setup_device():
+                                logger.info("API reconnection successful")
+                                consecutive_failures = 0
+                            
             except Exception as e:
-                logger.debug(f"heartbeat error: {e}")
+                consecutive_failures += 1
+                logger.error(f"heartbeat error: {e}")
             
+            # Sleep for 10 seconds total (check every second for stop event)
             for _ in range(10):
                 if self.stop_event.is_set():
                     break
@@ -417,6 +438,9 @@ class AudioPlayer:
             # start timer tracking
             self.config.last_playback_check_time = time.time()
             
+            # ADDED: Debug logging for timer start
+            logger.debug(f"Starting playback monitoring. Initial timer: {self.config.total_playback_time_since_last_ad:.1f}s")
+            
             while self.vlc_player.is_playing():
                 if self.stop_flag or self.should_refresh:
                     break
@@ -425,7 +449,13 @@ class AudioPlayer:
                     current_time = time.time()
                     if self.config.last_playback_check_time > 0:
                         elapsed = current_time - self.config.last_playback_check_time
+                        old_total = self.config.total_playback_time_since_last_ad
                         self.config.total_playback_time_since_last_ad += elapsed
+                        
+                        # ADDED: Debug logging for timer updates
+                        if elapsed > 0.5:  # Only log significant updates
+                            logger.debug(f"Timer update: +{elapsed:.1f}s = {self.config.total_playback_time_since_last_ad:.1f}s total")
+                        
                     self.config.last_playback_check_time = current_time
                     
                     self.log_time_progress(self.config.total_playback_time_since_last_ad)
@@ -463,7 +493,7 @@ class AudioPlayer:
                 time.sleep(0.5)
                 
         except Exception as e:
-            logger.debug(f"player monitoring error: {e}")
+            logger.error(f"player monitoring error: {e}")
         finally:
             self.config.last_playback_check_time = 0
     
@@ -513,6 +543,11 @@ class AudioPlayer:
                 logger.warning("device setup failed, continuing with limited functionality")
             
             self.config.load_state()
+            
+            # ADDED: Log current state after loading
+            logger.info(f"Loaded state: timer={self.config.total_playback_time_since_last_ad:.1f}s, "
+                       f"track_index={self.config.current_track_index}, "
+                       f"ad_index={self.config.current_ad_index}")
             
             download_thread = threading.Thread(target=self.api.download_all_tracks, daemon=True)
             download_thread.start()
