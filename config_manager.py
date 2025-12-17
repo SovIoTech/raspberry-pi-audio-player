@@ -43,7 +43,7 @@ class ConfigManager:
         
         self.current_track_index = 0
         self.current_ad_index = 0
-        self.total_playback_time_since_last_ad = 0
+        self.total_playback_time_since_last_ad = 0.0  # Changed to float for precision
         self.last_playback_check_time = 0
         self.last_minute_log = 0
     
@@ -166,7 +166,15 @@ class ConfigManager:
                 
                 self.current_track_index = state.get('current_track', 0)
                 self.current_ad_index = state.get('current_ad', 0)
-                self.total_playback_time_since_last_ad = state.get('total_playback_time', 0)
+                
+                # Ensure total_playback_time_since_last_ad is a float
+                total_time = state.get('total_playback_time', 0)
+                if isinstance(total_time, (int, float)):
+                    self.total_playback_time_since_last_ad = float(total_time)
+                else:
+                    self.total_playback_time_since_last_ad = 0.0
+                    logger.warning(f"Invalid total_playback_time value: {total_time}, resetting to 0")
+                
                 self.last_playback_check_time = 0
 
                 if self.main_playlist and self.current_track_index >= len(self.main_playlist):
@@ -175,11 +183,12 @@ class ConfigManager:
                 if self.ads_playlist and self.current_ad_index >= len(self.ads_playlist):
                     self.current_ad_index = 0
                 
-                logger.info(f"loaded state: track {self.current_track_index}, ad {self.current_ad_index}")
+                logger.info(f"loaded state: track {self.current_track_index}, ad {self.current_ad_index}, "
+                           f"timer: {self.total_playback_time_since_last_ad:.1f}s")
                 
             except Exception as e:
                 logger.error(f"error loading state: {e}")
-                self.total_playback_time_since_last_ad = 0
+                self.total_playback_time_since_last_ad = 0.0
     
     def save_state(self):
         """save current playback state to state.json."""
@@ -192,6 +201,7 @@ class ConfigManager:
         try:
             with open(self.state_file, 'w') as f:
                 json.dump(state, f, indent=2)
+            logger.debug(f"State saved: timer={self.total_playback_time_since_last_ad:.1f}s")
         except Exception as e:
             logger.error(f"error saving state: {e}")
     
