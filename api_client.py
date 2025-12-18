@@ -261,7 +261,7 @@ class APIClient:
                 filename = url.split('/')[-1]
                 if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
                     filename += '.mp3'
-                filename = re.sub(r[^\w\-_.], '_', filename)
+                filename = re.sub(r'[^\w\-_.]', '_', filename)
                 old_filenames.add(prefix + filename)
         
         new_filenames = set()
@@ -270,7 +270,7 @@ class APIClient:
                 filename = url.split('/')[-1]
                 if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
                     filename += '.mp3'
-                filename = re.sub(r[^\w\-_.], '_', filename)
+                filename = re.sub(r'[^\w\-_.]', '_', filename)
                 new_filenames.add(prefix + filename)
         
         removed = old_filenames - new_filenames
@@ -308,7 +308,7 @@ class APIClient:
         if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
             filename += '.mp3'
         
-        filename = re.sub(r[^\w\-_.], '_', filename)
+        filename = re.sub(r'[^\w\-_.]', '_', filename)
         prefix = 'main_' if track_type == 'main' else 'ad_'
         filename = prefix + filename
         filepath = self.config.cache_dir / filename
