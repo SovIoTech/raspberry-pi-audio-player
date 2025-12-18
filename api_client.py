@@ -1,7 +1,7 @@
 """
 API communication and network handling
 """
-
+import threading
 import requests
 import time
 import logging
@@ -179,7 +179,9 @@ class APIClient:
                     if new_volume != self.config.volume:
                         logger.info(f"volume updated from server: {self.config.volume} -> {new_volume}")
                         self.config.volume = new_volume
-    
+                        if hasattr(self, 'player_ref') and self.player_ref:
+                            self.player_ref.vlc_player.set_volume_smooth(new_volume)
+
     def _normalize_filename(self, url):
         """Helper to normalize filename from URL."""
         filename = url.split('/')[-1]

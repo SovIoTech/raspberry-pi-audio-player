@@ -183,33 +183,23 @@ class AudioPlayer:
             # Stop current playback
             if self.vlc_player.is_playing():
                 self.vlc_player.stop()
-                self.is_playing = False
-                self.is_paused = False
                 logger.info("Stopped current playback for refresh")
             
-            # Perform sync and get new tracks
-            current_track_removed = self.api.sync_tracks_safe()
+            # Force immediate refresh
+            self.should_refresh = True
             
-            # Reset playback state
-            self.config.current_track_index = 0
+            # Reset playback state but keep playing
             self.config.total_playback_time_since_last_ad = 0
-            self.config.last_minute_log = 0
             self.config.save_state()
+            logger.info("playback timer reset")
             
-            # Clear any pause state
-            self.vlc_player.was_paused = False
-            self.vlc_player.pause_position = 0
+            # Ensure playback continues after refresh
+            self.is_playing = True
+            self.is_paused = False
             
-            # Start playing from new playlist if we have tracks
-            cached_tracks = self.config.get_cached_tracks('main')
-            if cached_tracks:
-                self.is_playing = True
-                logger.info(f"Starting playback from new playlist ({len(cached_tracks)} tracks available)")
-            else:
-                logger.info("No tracks available yet, waiting for downloads...")
-            
-            self.should_refresh = False
-            logger.info("refresh completed")
+            # Start immediate sync
+            sync_thread = threading.Thread(target=self.api.sync_tracks_safe, daemon=True)
+            sync_thread.start()
             
             status = f"{command}_executed|{self.get_current_status()}"
             threading.Thread(target=self.api.send_heartbeat, args=(status,), daemon=True).start()
@@ -416,11 +406,16 @@ class AudioPlayer:
         logger.info("playback timer reset")
         
         self.config.last_minute_log = 0
-        
+        last_known_volume = self.config.volume
+
         while not self.stop_flag:
             try:
                 self.api.check_volume_update()
                 
+                if self.config.volume != last_known_volume:
+                    self.vlc_player.set_volume_smooth(self.config.volume)
+                    last_known_volume = self.config.volume
+
                 if self.should_refresh:
                     logger.info("performing refresh...")
                     current_track_removed = self.api.sync_tracks_safe()
@@ -588,6 +583,8 @@ class AudioPlayer:
             self.config.load_state()
             
             # Start download thread
+            self.api.download_priority_tracks()
+            
             download_thread = threading.Thread(target=self.api.download_all_tracks, daemon=True)
             download_thread.start()
             
