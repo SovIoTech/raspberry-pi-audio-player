@@ -8,17 +8,16 @@ import logging
 import socket
 import re
 from urllib.parse import quote
+from pathlib import Path
 from config_manager import ConfigManager
 
 logger = logging.getLogger(__name__)
 
 class APIClient:
     def __init__(self, config_manager):
-
         """initialize api client."""
         self.config = config_manager
         # load secrets from config manager
-
         self.config.load_secrets()
         self.api_base_url = self.config.api_base_url
         self.auth_token = self.config.auth_token
@@ -30,6 +29,13 @@ class APIClient:
         
         self.last_volume_update = 0
         self.volume_update_interval = 300
+        
+        # Reference to player for checking current track
+        self.player_ref = None
+    
+    def set_player_reference(self, player):
+        """Set reference to player for checking current track status."""
+        self.player_ref = player
     
     def send_heartbeat(self, status_info):
         """send heartbeat with status to server."""
@@ -174,13 +180,21 @@ class APIClient:
                         logger.info(f"volume updated from server: {self.config.volume} -> {new_volume}")
                         self.config.volume = new_volume
     
+    def _normalize_filename(self, url):
+        """Helper to normalize filename from URL."""
+        filename = url.split('/')[-1]
+        if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
+            filename += '.mp3'
+        filename = re.sub(r'[^\w\-_.]', '_', filename)
+        return filename
+    
     def sync_tracks_safe(self):
-        """sync tracks and clean up removed ones."""
+        """sync tracks and clean up removed ones. Returns True if currently playing track was removed."""
         logger.info("checking for new tracks and updates...")
         
         if not self.check_network():
             logger.info("no network, skipping track sync")
-            return
+            return False
         
         register_data = self.make_api_request_safe('register')
         if register_data:
@@ -195,6 +209,9 @@ class APIClient:
             except:
                 pass
         
+        # Track if current playing track was removed
+        current_track_removed = False
+        
         playlist_data = self.make_api_request_safe('playlist')
         if playlist_data:
             new_playlist = playlist_data.get('play_lists', [])
@@ -205,7 +222,11 @@ class APIClient:
                 playlist_changed = old_playlist != new_playlist
                 
                 self.config.main_playlist = new_playlist
-                self.clean_removed_tracks(old_playlist, new_playlist, 'main')
+                removed = self.clean_removed_tracks(old_playlist, new_playlist, 'main')
+                
+                # If currently playing track was removed
+                if removed:
+                    current_track_removed = True
                 
                 # Also reset if playlist order changed
                 if playlist_changed:
@@ -232,34 +253,42 @@ class APIClient:
                     self.config.save_state()
         
         self.config.save_config()
-        self.download_all_tracks()
+        
+        # Download high priority tracks first (first few tracks)
+        self.download_priority_tracks()
+        
+        # Start background download for remaining tracks
+        threading.Thread(target=self.download_all_tracks, daemon=True).start()
+        
+        return current_track_removed
     
     def clean_removed_tracks(self, old_list, new_list, track_type):
-        """delete cached tracks that are no longer in playlist."""
+        """delete cached tracks that are no longer in playlist. Returns True if currently playing track was removed."""
         prefix = 'main_' if track_type == 'main' else 'ad_'
         
         old_filenames = set()
         for url in old_list:
             if url:
-                filename = url.split('/')[-1]
-                if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
-                    filename += '.mp3'
-                filename = re.sub(r'[^\w\-_.]', '_', filename)
+                filename = self._normalize_filename(url)
                 old_filenames.add(prefix + filename)
         
         new_filenames = set()
         for url in new_list:
             if url:
-                filename = url.split('/')[-1]
-                if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
-                    filename += '.mp3'
-                filename = re.sub(r'[^\w\-_.]', '_', filename)
+                filename = self._normalize_filename(url)
                 new_filenames.add(prefix + filename)
         
         removed = old_filenames - new_filenames
         
-        # Check if playlist changed significantly
-        playlist_changed = len(removed) > 0 or len(old_filenames) != len(new_filenames)
+        # Check if currently playing track was removed
+        current_track_removed = False
+        if track_type == 'main' and self.player_ref and hasattr(self.player_ref, 'vlc_player'):
+            current_track = self.player_ref.vlc_player.current_track_path
+            if current_track:
+                current_filename = Path(current_track).name
+                if current_filename in removed:
+                    current_track_removed = True
+                    logger.info(f"Currently playing track {current_filename} was removed from playlist")
         
         if removed:
             for filename in removed:
@@ -272,6 +301,8 @@ class APIClient:
                         logger.warning(f"failed to remove {filename}: {e}")
         
         # Reset track index if playlist changed
+        playlist_changed = len(removed) > 0 or len(old_filenames) != len(new_filenames)
+        
         if playlist_changed and track_type == 'main':
             logger.info("playlist changed, resetting main track index to 0")
             self.config.current_track_index = 0
@@ -280,31 +311,54 @@ class APIClient:
             logger.info("ad playlist changed, resetting ad index to 0")
             self.config.current_ad_index = 0
             self.config.save_state()
+        
+        return current_track_removed
     
-    def download_all_tracks(self):
-        """download all tracks."""
+    def download_priority_tracks(self):
+        """Download first few tracks immediately for quick playback."""
         if not self.check_network():
             return
         
-        for url in self.config.main_playlist:
+        # Download first 3 tracks immediately
+        priority_urls = self.config.main_playlist[:3]
+        for url in priority_urls:
             if url:
-                self.download_track_safe(url, 'main')
+                self.download_track_safe(url, 'main', priority=True)
         
-        if self.config.ads_enabled:
-            for url in self.config.ads_playlist:
-                if url:
-                    self.download_track_safe(url, 'ad')
+        # Also download first ad if enabled
+        if self.config.ads_enabled and self.config.ads_playlist:
+            first_ad = self.config.ads_playlist[0]
+            if first_ad:
+                self.download_track_safe(first_ad, 'ad', priority=True)
     
-    def download_track_safe(self, url, track_type='main'):
+    def download_all_tracks(self):
+        """download all tracks in background."""
+        if not self.check_network():
+            return
+        
+        logger.info("Starting background download of all tracks...")
+        
+        # Download main tracks (skip first 3 already downloaded)
+        for i, url in enumerate(self.config.main_playlist):
+            if url:
+                if i >= 3:  # Skip first 3 already downloaded
+                    self.download_track_safe(url, 'main')
+        
+        # Download ads if enabled
+        if self.config.ads_enabled:
+            for i, url in enumerate(self.config.ads_playlist):
+                if url:
+                    if i >= 1:  # Skip first ad already downloaded
+                        self.download_track_safe(url, 'ad')
+        
+        logger.info("Background download completed")
+    
+    def download_track_safe(self, url, track_type='main', priority=False):
         """download track if not already cached."""
         if not url or not self.check_network():
             return None
         
-        filename = url.split('/')[-1]
-        if not filename.lower().endswith(('.mp3', '.wav', '.ogg', '.flac')):
-            filename += '.mp3'
-        
-        filename = re.sub(r'[^\w\-_.]', '_', filename)
+        filename = self._normalize_filename(url)
         prefix = 'main_' if track_type == 'main' else 'ad_'
         filename = prefix + filename
         filepath = self.config.cache_dir / filename
@@ -313,7 +367,11 @@ class APIClient:
             return str(filepath)
         
         try:
-            logger.info(f"downloading {track_type}: {filename}")
+            if priority:
+                logger.info(f"Priority downloading {track_type}: {filename}")
+            else:
+                logger.debug(f"Background downloading {track_type}: {filename}")
+            
             response = requests.get(url, stream=True, timeout=30)
             response.raise_for_status()
             
@@ -322,11 +380,15 @@ class APIClient:
                     if chunk:
                         f.write(chunk)
             
-            logger.info(f"downloaded: {filename}")
+            if priority:
+                logger.info(f"Priority downloaded: {filename}")
+            else:
+                logger.debug(f"Background downloaded: {filename}")
+            
             return str(filepath)
             
         except Exception as e:
-            logger.debug(f"download failed: {e}")
+            logger.debug(f"download failed for {filename}: {e}")
             if filepath.exists():
                 filepath.unlink()
             return None
