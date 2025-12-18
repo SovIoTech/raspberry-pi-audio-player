@@ -1,3 +1,0 @@
-/var/lib/audio-player/secret_config.json
-/etc/systemd/system/audio-player.service
-/etc/logrotate.d/audio-player

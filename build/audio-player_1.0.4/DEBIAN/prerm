@@ -1,8 +1,0 @@
-#!/bin/bash
-set -e
-
-echo "Stopping audio-player service..."
-systemctl stop audio-player.service || true
-systemctl disable audio-player.service || true
-
-exit 0
