@@ -67,6 +67,9 @@ class AudioPlayer:
         self.vlc_player = VLCPlayer(self.config, self.api)
         self.display = DisplayManager(self.config, self.vlc_player)
         
+        # Set player reference in API client for checking current track status
+        self.api.set_player_reference(self)
+        
         self.is_playing = False
         self.is_paused = False
         self.stop_flag = False
@@ -175,11 +178,38 @@ class AudioPlayer:
             threading.Thread(target=self.api.send_heartbeat, args=(status,), daemon=True).start()
         
         elif command == "refresh":
-            logger.info("refresh requested - updating content")
-            self.should_refresh = True
+            logger.info("refresh requested - updating content immediately")
+            
+            # Stop current playback
+            if self.vlc_player.is_playing():
+                self.vlc_player.stop()
+                self.is_playing = False
+                self.is_paused = False
+                logger.info("Stopped current playback for refresh")
+            
+            # Perform sync and get new tracks
+            current_track_removed = self.api.sync_tracks_safe()
+            
+            # Reset playback state
+            self.config.current_track_index = 0
             self.config.total_playback_time_since_last_ad = 0
+            self.config.last_minute_log = 0
             self.config.save_state()
-            logger.info("playback timer reset due to refresh")
+            
+            # Clear any pause state
+            self.vlc_player.was_paused = False
+            self.vlc_player.pause_position = 0
+            
+            # Start playing from new playlist if we have tracks
+            cached_tracks = self.config.get_cached_tracks('main')
+            if cached_tracks:
+                self.is_playing = True
+                logger.info(f"Starting playback from new playlist ({len(cached_tracks)} tracks available)")
+            else:
+                logger.info("No tracks available yet, waiting for downloads...")
+            
+            self.should_refresh = False
+            logger.info("refresh completed")
             
             status = f"{command}_executed|{self.get_current_status()}"
             threading.Thread(target=self.api.send_heartbeat, args=(status,), daemon=True).start()
@@ -350,14 +380,19 @@ class AudioPlayer:
                     original_track = ad_resume_state['track_path']
                     original_position = ad_resume_state.get('pause_position', 0)
                     
-                    logger.info(f"resuming original song after ad: {os.path.basename(original_track)}")
-                    if self.vlc_player.play_track(original_track, original_position):
-                        logger.info(f"resumed song from {int(original_position)}s")
-                        self.vlc_player.current_track_path = original_track
-                        self.vlc_player.pause_position = original_position
-                        self.vlc_player.was_paused = False
+                    # Check if original track still exists
+                    if os.path.exists(original_track):
+                        logger.info(f"resuming original song after ad: {os.path.basename(original_track)}")
+                        if self.vlc_player.play_track(original_track, original_position):
+                            logger.info(f"resumed song from {int(original_position)}s")
+                            self.vlc_player.current_track_path = original_track
+                            self.vlc_player.pause_position = original_position
+                            self.vlc_player.was_paused = False
+                        else:
+                            logger.info("playing next song after ad")
+                            self.vlc_player.play_next_track()
                     else:
-                        logger.info("playing next song after ad")
+                        logger.info("original song no longer exists, playing next song after ad")
                         self.vlc_player.play_next_track()
                 else:
                     logger.info("playing next song after ad")
@@ -388,18 +423,42 @@ class AudioPlayer:
                 
                 if self.should_refresh:
                     logger.info("performing refresh...")
-                    self.api.sync_tracks_safe()
+                    current_track_removed = self.api.sync_tracks_safe()
+                    
+                    # If currently playing track was removed, stop and restart
+                    if current_track_removed and self.vlc_player.is_playing():
+                        self.vlc_player.stop()
+                        self.is_playing = False
+                        self.is_paused = False
+                        self.vlc_player.was_paused = False
+                        self.vlc_player.pause_position = 0
+                        logger.info("Stopped playback because current track was removed from playlist")
+                    
                     self.should_refresh = False
+                    # Don't reset index here - sync_tracks_safe already does it
                 
                 if self.is_playing and not self.is_paused and not self.vlc_player.is_playing():
                     if self.vlc_player.was_paused and self.vlc_player.pause_position > 0 and self.vlc_player.current_track_path:
-                        if self.vlc_player.resume_from_pause():
-                            logger.info("resumed from pause position")
-                            self.vlc_player.was_paused = False
-                            self.wait_for_current_playback()
-                            continue
+                        # Check if paused track still exists
+                        if os.path.exists(self.vlc_player.current_track_path):
+                            if self.vlc_player.resume_from_pause():
+                                logger.info("resumed from pause position")
+                                self.vlc_player.was_paused = False
+                                self.wait_for_current_playback()
+                                continue
+                            else:
+                                logger.warning("resume failed, playing next track")
                         else:
-                            logger.warning("resume failed, playing next track")
+                            logger.warning("paused track no longer exists, playing next track")
+                            self.vlc_player.was_paused = False
+                            self.vlc_player.pause_position = 0
+                    
+                    # Check if we have any tracks before trying to play
+                    cached_tracks = self.config.get_cached_tracks('main')
+                    if not cached_tracks:
+                        logger.info("No tracks available, waiting for downloads...")
+                        time.sleep(5)
+                        continue
                     
                     if self.vlc_player.play_next_track():
                         self.wait_for_current_playback()
@@ -528,6 +587,7 @@ class AudioPlayer:
             
             self.config.load_state()
             
+            # Start download thread
             download_thread = threading.Thread(target=self.api.download_all_tracks, daemon=True)
             download_thread.start()
             
