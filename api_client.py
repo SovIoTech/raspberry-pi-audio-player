@@ -179,8 +179,6 @@ class APIClient:
                     if new_volume != self.config.volume:
                         logger.info(f"volume updated from server: {self.config.volume} -> {new_volume}")
                         self.config.volume = new_volume
-                        if hasattr(self, 'player_ref') and self.player_ref:
-                            self.player_ref.vlc_player.set_volume_smooth(new_volume)
 
     def _normalize_filename(self, url):
         """Helper to normalize filename from URL."""
@@ -263,56 +261,51 @@ class APIClient:
         threading.Thread(target=self.download_all_tracks, daemon=True).start()
         
         return current_track_removed
-    
+
     def clean_removed_tracks(self, old_list, new_list, track_type):
-        """delete cached tracks that are no longer in playlist. Returns True if currently playing track was removed."""
+        """
+        Robust Cleanup: Deletes ANY file on disk that is not in the new playlist.
+        """
         prefix = 'main_' if track_type == 'main' else 'ad_'
         
-        old_filenames = set()
-        for url in old_list:
-            if url:
-                filename = self._normalize_filename(url)
-                old_filenames.add(prefix + filename)
-        
-        new_filenames = set()
+        # 1. Calculate the filenames we WANT to keep
+        wanted_filenames = set()
         for url in new_list:
             if url:
                 filename = self._normalize_filename(url)
-                new_filenames.add(prefix + filename)
+                wanted_filenames.add(prefix + filename)
         
-        removed = old_filenames - new_filenames
+        # 2. Look at what files actually EXIST on disk
+        existing_files = set()
+        if self.config.cache_dir.exists():
+            for file in self.config.cache_dir.iterdir():
+                # Only look at files matching our current type (main_ or ad_)
+                if file.name.startswith(prefix) and (file.name.endswith('.mp3') or file.name.endswith('.tmp')):
+                    existing_files.add(file.name)
         
-        # Check if currently playing track was removed
+        # 3. Calculate difference: What is on disk that shouldn't be?
+        files_to_remove = existing_files - wanted_filenames
+        
+        # Check if currently playing track is about to be removed
         current_track_removed = False
         if track_type == 'main' and self.player_ref and hasattr(self.player_ref, 'vlc_player'):
             current_track = self.player_ref.vlc_player.current_track_path
             if current_track:
                 current_filename = Path(current_track).name
-                if current_filename in removed:
+                if current_filename in files_to_remove:
                     current_track_removed = True
-                    logger.info(f"Currently playing track {current_filename} was removed from playlist")
+                    logger.info(f"Currently playing track {current_filename} is not in new playlist")
         
-        if removed:
-            for filename in removed:
+        # 4. Delete the unwanted files
+        if files_to_remove:
+            logger.info(f"Found {len(files_to_remove)} orphaned {track_type} tracks on disk. Cleaning up...")
+            for filename in files_to_remove:
                 filepath = self.config.cache_dir / filename
-                if filepath.exists():
-                    try:
-                        filepath.unlink()
-                        logger.info(f"removed old track: {filename}")
-                    except Exception as e:
-                        logger.warning(f"failed to remove {filename}: {e}")
-        
-        # Reset track index if playlist changed
-        playlist_changed = len(removed) > 0 or len(old_filenames) != len(new_filenames)
-        
-        if playlist_changed and track_type == 'main':
-            logger.info("playlist changed, resetting main track index to 0")
-            self.config.current_track_index = 0
-            self.config.save_state()
-        elif playlist_changed and track_type == 'ad':
-            logger.info("ad playlist changed, resetting ad index to 0")
-            self.config.current_ad_index = 0
-            self.config.save_state()
+                try:
+                    filepath.unlink()
+                    logger.info(f"deleted orphaned file: {filename}")
+                except Exception as e:
+                    logger.warning(f"failed to remove {filename}: {e}")
         
         return current_track_removed
     
@@ -377,10 +370,27 @@ class APIClient:
             response = requests.get(url, stream=True, timeout=30)
             response.raise_for_status()
             
-            with open(filepath, 'wb') as f:
+            temp_filepath = filepath.with_suffix('.tmp')
+            
+            with open(temp_filepath, 'wb') as f:
                 for chunk in response.iter_content(chunk_size=8192):
+                    
+                    # if this url is no longer in any playlist, stop downloading
+                    if (url not in self.config.main_playlist and 
+                        url not in self.config.ads_playlist):
+                        logger.info(f"Aborting download for removed track: {filename}")
+                        f.close() # Close file handle
+                        temp_filepath.unlink() 
+                        return None
+                    # ----------------------
+
                     if chunk:
                         f.write(chunk)
+            
+            # 2. Rename to final .mp3 only after full success
+            # The .replace() method is atomic on POSIX systems (Linux/Raspberry Pi)
+            if temp_filepath.exists():
+                temp_filepath.replace(filepath)
             
             if priority:
                 logger.info(f"Priority downloaded: {filename}")
@@ -391,6 +401,19 @@ class APIClient:
             
         except Exception as e:
             logger.debug(f"download failed for {filename}: {e}")
-            if filepath.exists():
-                filepath.unlink()
+            
+            # Cleanup temp file if it exists so we don't clutter the disk
+            if 'temp_filepath' in locals() and temp_filepath.exists():
+                try:
+                    temp_filepath.unlink()
+                except:
+                    pass
+            
+            # Safety check: if the main file exists but is empty/corrupt, delete it too
+            if filepath.exists() and filepath.stat().st_size == 0:
+                try:
+                    filepath.unlink()
+                except:
+                    pass
+                    
             return None
