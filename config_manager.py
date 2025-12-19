@@ -34,7 +34,7 @@ class ConfigManager:
         
         self.device_name = "Raspberry Pi Audio Player"
         self.location = "Unknown"
-        self.volume = "7"
+        self.volume = "1"
         self.audio_mode = "Normal"
         self.ads_enabled = True
         self.playback_interval = 5
@@ -202,7 +202,12 @@ class ConfigManager:
         
         if self.cache_dir.exists():
             for file in self.cache_dir.iterdir():
-                if file.name.startswith(prefix) and file.is_file():
+                
+                if (file.name.startswith(prefix) and 
+                    file.is_file() and 
+                    file.name.endswith('.mp3') and 
+                    not file.name.endswith('.tmp')):
+                    
                     tracks.append(str(file))
         
         return sorted(tracks)
