@@ -159,6 +159,14 @@ class VLCPlayer:
             if result != 0:
                 return False
             
+            # Wait until playback actually starts
+            for _ in range(20):
+                if self.player.is_playing():
+                    break
+                time.sleep(0.05)
+            
+            self.set_volume_smooth(self.config.volume)
+            
             if start_position > 0:
                 time.sleep(0.1)
                 for attempt in range(3):
@@ -234,6 +242,9 @@ class VLCPlayer:
         
         success = self.play_track(ad_track)
         if success:
+            self.set_volume_smooth(self.config.volume)
+
+        if success:
             self.config.current_ad_index += 1
             self.config.save_state()
         return success
@@ -246,6 +257,7 @@ class VLCPlayer:
         success = self.play_track(self.current_track_path, self.pause_position)
         if success:
             self.was_paused = False
+            self.set_volume_smooth(self.config.volume)
         return success
     
     def resume(self):
