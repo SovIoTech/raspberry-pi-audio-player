@@ -167,7 +167,8 @@ class AudioPlayer:
             self.vlc_player.stop()
             cached_tracks = self.config.get_cached_tracks('main')
             if cached_tracks:
-                self.config.current_track_index = max(0, self.config.current_track_index - 2)
+                self.config.current_track_index = (self.config.current_track_index - 2) % len(cached_tracks)
+                #old logic was self.config.current_track_index = max(0, self.config.current_track_index - 2)
                 if self.config.current_track_index < 0:
                     self.config.current_track_index = len(cached_tracks) - 1
             self.config.save_state()
@@ -411,10 +412,7 @@ class AudioPlayer:
         while not self.stop_flag:
             try:
                 self.api.check_volume_update()
-                
-                if self.config.volume != last_known_volume:
-                    self.vlc_player.set_volume_smooth(self.config.volume)
-                    last_known_volume = self.config.volume
+                last_known_volume = self.config.volume
 
                 if self.should_refresh:
                     logger.info("performing refresh...")
@@ -527,14 +525,36 @@ class AudioPlayer:
                 
         except Exception as e:
             logger.debug(f"player monitoring error: {e}")
+        
         finally:
             self.config.last_playback_check_time = 0
             
-            current_track_count = len(self.config.get_cached_tracks('main'))
+            new_tracks = self.config.get_cached_tracks('main')
+            current_track_count = len(new_tracks)
+            
             if current_track_count != initial_track_count:
-                logger.info(f"track count changed during playback: {initial_track_count} -> {current_track_count}")
-                self.config.current_track_index = 0
-                self.config.save_state()
+                logger.info(f"track count changed: {initial_track_count} -> {current_track_count}")
+                
+                # get the filename of what we are currently playing
+                current_path = self.vlc_player.current_track_path
+                
+                if current_path and current_path in new_tracks:
+                    # find where our current song is in the NEW list
+                    new_index = new_tracks.index(current_path)
+                    target_next_index = (new_index + 1) % len(new_tracks)
+
+                    # Update config to match the new reality
+                    if self.config.current_track_index != new_index:
+                        logger.info(f"re-synced track index from {self.config.current_track_index} to {target_next_index}")
+                        self.config.current_track_index = target_next_index
+                        self.config.save_state()
+                else:
+                    # Current song was deleted or we can't find it
+                    # Safe fallback: don't reset to 0, just clamp index to bounds
+                    logger.warning("current track lost during update, maintaining best guess index")
+                    if self.config.current_track_index >= current_track_count:
+                        self.config.current_track_index = max(0, current_track_count - 1)
+                        self.config.save_state()
     
     def cleanup(self):
         logger.info("cleaning up...")
@@ -572,7 +592,7 @@ class AudioPlayer:
             
             if self.api.setup_device():
                 logger.info("device setup successful")
-                self.vlc_player.set_volume_smooth(self.config.volume)
+                # self.vlc_player.set_volume_smooth(self.config.volume)
                 
                 if TEST_MODE:
                     self.config.playback_interval = TEST_AD_INTERVAL
