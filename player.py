@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-"""
-Raspberry Pi Audio Player - Main entry point
-"""
 
 import sys
 import os
 import threading
 import time
 import logging
-import socket
 from pathlib import Path
 
 from vlc_player import VLCPlayer
 from api_client import APIClient
 from config_manager import ConfigManager
+from display_manager import DisplayManager
 
 IS_DOCKER = Path('/.dockerenv').exists()
 
@@ -27,40 +24,27 @@ else:
 IS_SERVICE = Path('/opt/audio-player/player.py').exists()
 
 if IS_SERVICE:
-    # Service mode paths
     BASE_DIR = Path("/opt/audio-player")
     PERSISTENT_DIR = Path("/var/lib/audio-player")
     LOG_DIR = Path("/var/log/audio-player")
     
-    # Create directories with proper permissions
     PERSISTENT_DIR.mkdir(exist_ok=True, parents=True)
     LOG_DIR.mkdir(exist_ok=True, parents=True)
     
-    # Log files in service location
     log_file = LOG_DIR / "player.log"
     error_log_file = LOG_DIR / "player-error.log"
 else:
-    # Manual mode paths (your existing code)
     BASE_DIR = Path.cwd()
     PERSISTENT_DIR = BASE_DIR / "data"
     LOG_DIR = BASE_DIR
     
-    # Create directories
     PERSISTENT_DIR.mkdir(exist_ok=True, parents=True)
     
-    # Log files in current directory
     log_file = LOG_DIR / "player.log"
     error_log_file = LOG_DIR / "player-error.log"
 
-# BASE_DIR.mkdir(exist_ok=True, parents=True)
-PERSISTENT_DIR.mkdir(exist_ok=True, parents=True)
-
 TEST_MODE = False
-TEST_SERVER_PORT = 9999
 TEST_AD_INTERVAL = 1
-
-log_file = BASE_DIR / "player.log"
-error_log_file = BASE_DIR / "player-error.log"
 
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
@@ -76,25 +60,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-logger.info(f"running in {'service' if IS_SERVICE else 'local'} mode")
-logger.info(f"base dir: {BASE_DIR}")
-logger.info(f"persistent dir: {PERSISTENT_DIR}")
-logger.info(f"log dir: {LOG_DIR}")
-
 class AudioPlayer:
     def __init__(self):
-        """initialize the audio player components."""
         self.config = ConfigManager(BASE_DIR, PERSISTENT_DIR)
         self.api = APIClient(self.config)
         self.vlc_player = VLCPlayer(self.config, self.api)
+        self.display = DisplayManager(self.config, self.vlc_player)
+        
+        # Set player reference in API client for checking current track status
+        self.api.set_player_reference(self)
         
         self.is_playing = False
         self.is_paused = False
         self.stop_flag = False
         self.should_refresh = False
-        
         self.pending_commands = []
         self.is_playing_ad = False
+        self.pending_ad_resume_state = None
         
         self.command_thread = None
         self.heartbeat_thread = None
@@ -103,11 +85,9 @@ class AudioPlayer:
         logger.info("audio player initialized")
     
     def check_network(self):
-        """check if network is available."""
         return self.api.check_network()
     
     def get_current_status(self):
-        """get current player status."""
         if self.is_playing_ad:
             return "playing_ad"
         elif self.is_playing and not self.is_paused:
@@ -118,7 +98,10 @@ class AudioPlayer:
             return "stopped"
     
     def handle_command(self, command):
-        """handle commands from api with proper deferral and execution."""
+        if not command or command.strip() == '':
+            logger.debug("received empty command, ignoring")
+            return
+            
         logger.info(f"processing command: {command}")
         
         if self.is_playing_ad:
@@ -160,7 +143,8 @@ class AudioPlayer:
             self.is_playing = False
             self.is_paused = False
             self.config.current_track_index = 0
-            self.config.total_playback_time_since_last_ad = 0
+            # Note: We do NOT reset the ad timer on STOP. 
+            # If user stops and starts later, ad should play if due.
             self.config.save_state()
             logger.info("playback stopped")
             
@@ -168,7 +152,7 @@ class AudioPlayer:
             threading.Thread(target=self.api.send_heartbeat, args=(status,), daemon=True).start()
         
         elif command == "next":
-            self.vlc_player.stop()
+            self.vlc_player.stop() # This breaks wait_for_current_playback loop
             cached_tracks = self.config.get_cached_tracks('main')
             if cached_tracks:
                 if self.config.current_track_index >= len(cached_tracks):
@@ -181,10 +165,10 @@ class AudioPlayer:
             threading.Thread(target=self.api.send_heartbeat, args=(status,), daemon=True).start()
         
         elif command == "previous":
-            self.vlc_player.stop()
+            self.vlc_player.stop() # This breaks wait_for_current_playback loop
             cached_tracks = self.config.get_cached_tracks('main')
             if cached_tracks:
-                self.config.current_track_index = max(0, self.config.current_track_index - 2)
+                self.config.current_track_index = (self.config.current_track_index - 2) % len(cached_tracks)
                 if self.config.current_track_index < 0:
                     self.config.current_track_index = len(cached_tracks) - 1
             self.config.save_state()
@@ -195,11 +179,24 @@ class AudioPlayer:
             threading.Thread(target=self.api.send_heartbeat, args=(status,), daemon=True).start()
         
         elif command == "refresh":
-            logger.info("refresh requested - updating content")
+            logger.info("refresh requested - updating content immediately")
+            
+            if self.vlc_player.is_playing():
+                self.vlc_player.stop()
+                logger.info("Stopped current playback for refresh")
+            
             self.should_refresh = True
+            
+            # Reset playback state but keep playing
             self.config.total_playback_time_since_last_ad = 0
             self.config.save_state()
-            logger.info("playback timer reset due to refresh")
+            logger.info("playback timer reset")
+            
+            self.is_playing = True
+            self.is_paused = False
+            
+            sync_thread = threading.Thread(target=self.api.sync_tracks_safe, daemon=True)
+            sync_thread.start()
             
             status = f"{command}_executed|{self.get_current_status()}"
             threading.Thread(target=self.api.send_heartbeat, args=(status,), daemon=True).start()
@@ -228,7 +225,6 @@ class AudioPlayer:
             threading.Thread(target=self.api.send_heartbeat, args=(status,), daemon=True).start()
     
     def process_pending_commands(self):
-        """process deferred commands, removing duplicate plays and keeping only important ones."""
         if not self.pending_commands:
             return
         
@@ -260,7 +256,7 @@ class AudioPlayer:
             cleaned_commands.insert(0, "play")
         
         if cleaned_commands:
-            logger.info(f"processing {len(cleaned_commands)} deferred command(s) (filtered from {len(self.pending_commands)})")
+            logger.info(f"processing {len(cleaned_commands)} deferred command(s)")
             for cmd in cleaned_commands:
                 logger.info(f"executing deferred command: {cmd}")
                 self.handle_command(cmd)
@@ -269,7 +265,6 @@ class AudioPlayer:
         self.pending_commands.clear()
     
     def command_poller_safe(self):
-        """poll for commands from api."""
         logger.info("command poller started")
         
         while not self.stop_event.is_set():
@@ -278,11 +273,9 @@ class AudioPlayer:
                     data = self.api.make_api_request_safe('command', method='GET', cache_bust=True)
                     if data and 'command' in data:
                         command = data['command'].lower()
-                        
                         if command != 'none':
                             logger.info(f"command received: '{command}'")
                             self.handle_command(command)
-            
             except Exception as e:
                 logger.debug(f"poller error: {e}")
             
@@ -292,7 +285,6 @@ class AudioPlayer:
                 time.sleep(1)
     
     def heartbeat_sender(self):
-        """send periodic heartbeat with status."""
         logger.info("heartbeat sender started")
         
         while not self.stop_event.is_set():
@@ -312,21 +304,21 @@ class AudioPlayer:
                 time.sleep(1)
     
     def log_time_progress(self, playback_time):
-        """log time progress every minute."""
         playback_minutes = int(playback_time / 60)
         
+        # Only log periodically to avoid spamming
         if playback_minutes > self.config.last_minute_log:
             self.config.last_minute_log = playback_minutes
-            minutes_until_ad = max(0, self.config.playback_interval - playback_minutes)
             
-            logger.info(f"[timer] {playback_minutes} min playback | {minutes_until_ad} min until ad")
+            interval_seconds = self.config.playback_interval * 60
+            remaining_seconds = interval_seconds - playback_time
             
-            if minutes_until_ad <= 1:
-                seconds_until_ad = max(0, (self.config.playback_interval * 60) - playback_time)
-                logger.info(f"[timer] ad in {int(seconds_until_ad)} seconds")
-   
+            if remaining_seconds > 0:
+                logger.info(f"[timer] {playback_minutes} min playback | {int(remaining_seconds/60)} min until ad")
+            else:
+                logger.info(f"[timer] OVERTIME: {int(abs(remaining_seconds))}s past ad trigger (waiting for track end)")
+
     def play_ad(self):
-        """play an ad and handle state properly."""
         if not self.config.ads_enabled:
             return
         
@@ -337,16 +329,38 @@ class AudioPlayer:
             self.config.save_state()
             return
         
+        # Defensive: Check index validity
+        if self.config.current_ad_index >= len(cached_ads):
+            self.config.current_ad_index = 0
+        
+        ad_track = cached_ads[self.config.current_ad_index]
+        
+        # Critical: Verify file exists
+        if not os.path.exists(ad_track):
+            logger.warning(f"Ad file not found: {ad_track}")
+            self.config.current_ad_index = (self.config.current_ad_index + 1) % len(cached_ads)
+            self.config.save_state()
+            # Recursively try next ad (with depth limit implicit via list length)
+            self.play_ad()
+            return    
+        
         playback_minutes = int(self.config.total_playback_time_since_last_ad / 60)
         logger.info(f"playing ad after {playback_minutes} minutes of playback")
         
         self.is_playing_ad = True
         
-        main_was_paused = self.vlc_player.was_paused
-        main_pause_position = self.vlc_player.pause_position
-        main_track_path = self.vlc_player.current_track_path
+        ad_name = os.path.basename(ad_track)
         
-        logger.info(f"saved state before ad: was_paused={main_was_paused}, position={int(main_pause_position) if main_pause_position else 0}s, track={main_track_path}")
+        ad_duration = 0
+        try:
+            if self.vlc_player.instance:
+                media = self.vlc_player.instance.media_new(ad_track)
+                media.parse()
+                ad_duration = media.get_duration() / 1000.0
+        except:
+            pass
+        
+        self.display.set_ad_playing(True, ad_name, ad_duration)
         
         if self.vlc_player.play_ad():
             logger.info("ad started")
@@ -359,54 +373,115 @@ class AudioPlayer:
             self.config.save_state()
             logger.info("ad completed, timer reset")
             
-            self.vlc_player.was_paused = main_was_paused
-            self.vlc_player.pause_position = main_pause_position
-            self.vlc_player.current_track_path = main_track_path
+            self.display.set_ad_playing(False)
             
-            logger.info(f"restored state after ad: was_paused={self.vlc_player.was_paused}, position={int(self.vlc_player.pause_position) if self.vlc_player.pause_position else 0}s, track={self.vlc_player.current_track_path}")
+            # Note: We do NOT automatically resume previous track here anymore
+            # because we only play ads between tracks. We just proceed to next track.
             
             if self.pending_commands:
                 logger.info("processing deferred commands")
                 self.process_pending_commands()
     
     def start_audio_loop(self):
-        """main audio playback loop."""
-        logger.info("starting audio playback loop")
         
-        time.sleep(1)
-        self.is_playing = True
+        logger.info("starting audio playback loop (Soft Ad Insertion Mode)")
+         
+        # time.sleep(1)
+        # self.is_playing = True
         
-        self.config.total_playback_time_since_last_ad = 0
-        self.config.save_state()
-        logger.info("playback timer reset")
+        # self.config.total_playback_time_since_last_ad = 0
+        # self.config.save_state()
         
-        self.config.last_minute_log = 0
-        
+        # self.config.last_minute_log = 0
+        # last_known_volume = self.config.volume
+
         while not self.stop_flag:
             try:
-                self.api.check_volume_update()
-                
+                # self.api.check_volume_update()
+                last_known_volume = self.config.volume
+
+                # 1. Handle Refresh/Sync
                 if self.should_refresh:
                     logger.info("performing refresh...")
-                    self.api.sync_tracks_safe()
+                    current_track_removed = self.api.sync_tracks_safe()
+                    
+                    if current_track_removed and self.vlc_player.is_playing():
+                        self.vlc_player.stop()
+                        self.is_playing = False
+                        self.is_paused = False
+                        self.vlc_player.was_paused = False
+                        self.vlc_player.pause_position = 0
+                        logger.info("Stopped playback because current track was removed")
+                    
                     self.should_refresh = False
                 
-                if self.is_playing and not self.is_paused and not self.vlc_player.is_playing():
-                    if self.vlc_player.was_paused and self.vlc_player.pause_position > 0 and self.vlc_player.current_track_path:
-                        if self.vlc_player.resume_from_pause():
-                            logger.info("resumed from pause position")
-                            self.vlc_player.was_paused = False
-                            self.wait_for_current_playback()
-                            continue
-                        else:
-                            logger.warning("resume failed, playing next track")
+                # 2. Main Playback Logic
+                if self.is_playing and not self.is_paused:
                     
-                    if self.vlc_player.play_next_track():
-                        self.wait_for_current_playback()
-                    else:
-                        logger.warning("failed to play track, retrying in 3s")
-                        time.sleep(3)
-                
+                    # A. Check if we need to resume a PAUSED track
+                    # We prioritize resuming a specific song over playing an ad to be polite.
+                    if (not self.vlc_player.is_playing() and 
+                        self.vlc_player.was_paused and 
+                        self.vlc_player.pause_position > 0 and 
+                        self.vlc_player.current_track_path):
+                        
+                        if os.path.exists(self.vlc_player.current_track_path):
+                            if self.vlc_player.resume_from_pause():
+                                logger.info("resumed from pause position")
+                                self.vlc_player.was_paused = False
+                                self.wait_for_current_playback()
+                                continue
+                            else:
+                                logger.warning("resume failed")
+                        else:
+                            logger.warning("paused track lost")
+                            self.vlc_player.was_paused = False
+                            self.vlc_player.pause_position = 0
+                    
+                    # B. SOFT AD INSERTION CHECK
+                    # We check this only if no song is currently playing.
+                    # This happens after a song finishes naturally OR user skips.
+                    if not self.vlc_player.is_playing():
+                        
+                        # Check timer
+                        if (self.config.ads_enabled and 
+                            self.config.total_playback_time_since_last_ad >= (self.config.playback_interval * 60)):
+                            
+                            logger.info(f"Ad Timer Expired ({int(self.config.total_playback_time_since_last_ad)}s) - Playing Ad sequence")
+                            
+                            # Clean up any old resume state since we finished the previous interaction
+                            if hasattr(self, 'pending_ad_resume_state'):
+                                 del self.pending_ad_resume_state
+                            
+                            self.play_ad()
+                            # Loop continues, timer is now 0, will pick up next song below
+                            continue
+
+                        # C. Play Next Track
+                        # If we are here, we are playing, not paused, nothing is playing, and no ad is due.
+                        
+                        cached_tracks = self.config.get_cached_tracks('main')
+                        if not cached_tracks:
+                            logger.info("No tracks available, waiting for downloads...")
+                            time.sleep(5)
+                            continue
+                        
+                        if self.vlc_player.play_next_track():
+                            # Monitor the track until it finishes or is skipped
+                            self.wait_for_current_playback()
+                        else:
+                            # --- FIX: RESET IF TRACK MISSING ---
+                            logger.warning(f"Failed to play track index {self.config.current_track_index}. Resetting to Track 1.")
+                            self.config.current_track_index = -1 # Reset so next track is 0
+                            self.config.save_state()
+                            
+                            # Try playing Track 1 immediately without waiting
+                            if self.vlc_player.play_next_track():
+                                self.wait_for_current_playback()
+                            else:
+                                logger.error("Even Track 1 failed. Waiting for downloads...")
+                                time.sleep(5)
+                            # -----------------------------------                
                 time.sleep(0.1)
                 
             except KeyboardInterrupt:
@@ -416,8 +491,15 @@ class AudioPlayer:
                 time.sleep(3)
     
     def wait_for_current_playback(self):
-        """wait for current playback to complete and track time."""
+        """
+        Monitors playback of the current song.
+        Does NOT interrupt for ads. Just logs time.
+        Exits when song ends naturally or is stopped/skipped.
+        """
         try:
+            initial_track_count = len(self.config.get_cached_tracks('main'))
+            self.config.last_playback_check_time = time.time()
+            
             while self.vlc_player.is_playing():
                 if self.stop_flag or self.should_refresh:
                     break
@@ -427,49 +509,48 @@ class AudioPlayer:
                     if self.config.last_playback_check_time > 0:
                         elapsed = current_time - self.config.last_playback_check_time
                         self.config.total_playback_time_since_last_ad += elapsed
-                    self.config.last_playback_check_time = current_time
                     
+                    self.config.last_playback_check_time = current_time
                     self.log_time_progress(self.config.total_playback_time_since_last_ad)
                     
-                    if (self.config.ads_enabled and 
-                        self.config.total_playback_time_since_last_ad >= (self.config.playback_interval * 60)):
-                        
-                        playback_minutes = int(self.config.total_playback_time_since_last_ad / 60)
-                        logger.info(f"[ad time] {playback_minutes} minutes - playing ad")
-                        
-                        saved_track_path = self.vlc_player.current_track_path
-                        saved_pause_pos = 0
-                        
-                        if self.vlc_player.player and self.vlc_player.player.is_playing():
-                            try:
-                                track_position = self.vlc_player.player.get_time() / 1000.0
-                                saved_pause_pos = track_position
-                                logger.info(f"paused track at {int(track_position)}s (track position) before ad")
-                            except:
-                                logger.warning("could not get track position, will start fresh after ad")
-                        
-                        self.vlc_player.stop()
-                        time.sleep(0.1)
-                        
-                        self.vlc_player.was_paused = True
-                        self.vlc_player.pause_position = saved_pause_pos
-                        self.vlc_player.current_track_path = saved_track_path
-                        
-                        self.play_ad()
-                        return
-                
+                    # Note: The ad interruption block is purposely REMOVED.
+                    # We allow the song to finish. The start_audio_loop will handle
+                    # the ad playback immediately after this function returns.
+
                 time.sleep(0.5)
                 
         except Exception as e:
             logger.debug(f"player monitoring error: {e}")
+        
         finally:
             self.config.last_playback_check_time = 0
+            
+            # Sync check logic (handles if tracks were deleted while playing)
+            new_tracks = self.config.get_cached_tracks('main')
+            current_track_count = len(new_tracks)
+            
+            if current_track_count != initial_track_count:
+                logger.info(f"track count changed: {initial_track_count} -> {current_track_count}")
+                current_path = self.vlc_player.current_track_path
+                
+                if current_path and current_path in new_tracks:
+                    new_index = new_tracks.index(current_path)
+                    target_next_index = (new_index + 1) % len(new_tracks)
+                    if self.config.current_track_index != new_index:
+                        self.config.current_track_index = target_next_index
+                        self.config.save_state()
+                else:
+                    if self.config.current_track_index >= current_track_count:
+                        self.config.current_track_index = max(0, current_track_count - 1)
+                        self.config.save_state()
     
     def cleanup(self):
-        """cleanup resources."""
         logger.info("cleaning up...")
         self.stop_flag = True
         self.stop_event.set()
+        
+        if hasattr(self, 'display'):
+            self.display.stop()
         
         try:
             status = "shutdown"
@@ -490,7 +571,6 @@ class AudioPlayer:
         logger.info("cleanup completed")
     
     def run(self):
-        """main run method."""
         try:
             self.config.load_mac_address()
             
@@ -500,18 +580,13 @@ class AudioPlayer:
             
             if self.api.setup_device():
                 logger.info("device setup successful")
-                self.vlc_player.set_volume_smooth(self.config.volume)
-                
                 if TEST_MODE:
                     self.config.playback_interval = TEST_AD_INTERVAL
-                    logger.info(f"TEST MODE: ad interval set to {TEST_AD_INTERVAL} minute(s)")
+                    logger.info(f"test mode: ad interval set to {TEST_AD_INTERVAL} minute(s)")
             else:
                 logger.warning("device setup failed, continuing with limited functionality")
             
             self.config.load_state()
-            
-            download_thread = threading.Thread(target=self.api.download_all_tracks, daemon=True)
-            download_thread.start()
             
             self.command_thread = threading.Thread(target=self.command_poller_safe, daemon=True)
             self.command_thread.start()
@@ -519,7 +594,13 @@ class AudioPlayer:
             self.heartbeat_thread = threading.Thread(target=self.heartbeat_sender, daemon=True)
             self.heartbeat_thread.start()
             
-            logger.info("starting main audio playback loop...")
+            self.display.start()
+            
+            self.api.download_priority_tracks()
+            
+            download_thread = threading.Thread(target=self.api.download_all_tracks, daemon=True)
+            download_thread.start()
+            logger.info("DEBUG: Calling start_audio_loop now...")
             self.start_audio_loop()
             
         except KeyboardInterrupt:
